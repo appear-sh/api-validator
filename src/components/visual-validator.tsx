@@ -14,6 +14,7 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { LottieLoader } from "@/components/ui/lottie-loader"
 
 // Define the shared result type (matching page.tsx and backend)
 type ValidationResult = {
@@ -280,10 +281,7 @@ export function VisualValidator({ isLoading, results, specContent, error }: Visu
     return (
       <Card className="border-border/40 bg-card/30 backdrop-blur-sm">
         <CardContent className="p-6 flex justify-center items-center min-h-[400px]">
-          <div className="flex flex-col items-center gap-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
-            <p className="text-muted-foreground">Loading validation results...</p>
-          </div>
+          <LottieLoader />
         </CardContent>
       </Card>
     )

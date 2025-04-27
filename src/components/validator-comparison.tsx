@@ -8,16 +8,15 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useToast } from "@/hooks/use-toast"
 import type { ValidationIssue } from "@/lib/types"
 import { useValidationResults } from "@/hooks/use-validation-results"
 import { ScoreDisplay } from "@/components/score-display"
+import { toast } from "sonner"
 
 export function ValidatorComparison() {
   const { results, isLoading } = useValidationResults()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedSeverity, setSelectedSeverity] = useState<string | null>(null)
-  const { toast } = useToast()
 
   const handleCopyResults = () => {
     if (!results) return
@@ -25,9 +24,8 @@ export function ValidatorComparison() {
     const jsonString = JSON.stringify(results, null, 2)
     navigator.clipboard.writeText(jsonString)
 
-    toast({
-      title: "Copied to clipboard",
-      description: "Validation results have been copied to your clipboard.",
+    toast.success("Copied to clipboard", {
+      description: "Validation results have been copied to your clipboard."
     })
   }
 
@@ -215,10 +213,7 @@ export function ValidatorComparison() {
                                     className="h-5 w-5"
                                     onClick={() => {
                                       // This would highlight the corresponding location in the spec
-                                      toast({
-                                        title: "Location highlighted",
-                                        description: `Highlighted path: ${issue.path}`,
-                                      })
+                                      toast.info(`Highlighted path: ${issue.path}`)
                                     }}
                                   >
                                     <ExternalLink className="h-3 w-3" />
