@@ -112,6 +112,16 @@ export async function POST(request: Request) {
             }
           }));
           allValidationResults = allValidationResults.concat(spectralMappedResults);
+          
+          // Add a success message if there were no issues
+          if (spectralIssues.length === 0) {
+            allValidationResults.push({
+              source: 'Spectral',
+              code: 'SPECTRAL_VALIDATION_SUCCESS',
+              message: 'No linting issues found. The specification is valid according to Spectral.',
+              severity: 'info',
+            });
+          }
         } catch (spectralError) {
           console.error('Spectral Error:', spectralError);
           allValidationResults.push({
@@ -131,6 +141,13 @@ export async function POST(request: Request) {
           // Use the content parsed specifically for Spectral
           await SwaggerParser.validate(JSON.parse(JSON.stringify(spectralParsedContent))); // Deep clone needed
           console.log('Swagger Parser validation successful (no structural errors found).');
+          // Add a success message so SwaggerParser always appears in the validators list
+          allValidationResults.push({
+            source: 'SwaggerParser',
+            code: 'SWAGGER_VALIDATION_SUCCESS',
+            message: 'No structural errors found. The specification is valid according to Swagger Parser.',
+            severity: 'info',
+          });
         } catch (error) {
           const swaggerError = error as SwaggerParserError;
           console.warn('Swagger Parser Validation Error:', swaggerError);
@@ -185,6 +202,14 @@ export async function POST(request: Request) {
           code: 'ZOD_UNKNOWN_ERROR',
           message: 'Validation failed with an unexpected error format.',
           severity: 'error',
+        });
+      } else {
+        // If validation is successful, add a success message
+        allValidationResults.push({
+          source: 'OAS Zod Validator',
+          code: 'ZOD_VALIDATION_SUCCESS',
+          message: 'No schema validation issues found. The specification is valid according to OAS Zod Validator.',
+          severity: 'info',
         });
       }
     } catch (oasZodError) {

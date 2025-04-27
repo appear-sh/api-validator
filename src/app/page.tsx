@@ -1,6 +1,6 @@
 'use client'; // Need this for state and handlers
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { UploadArea } from "@/components/upload-area"
 import { VisualValidator } from "@/components/visual-validator"
 import { Toaster } from "@/components/ui/sonner"
@@ -21,6 +21,9 @@ export default function Home() {
   const [validationResults, setValidationResults] = useState<ValidationResult[]>([]);
   const [specContent, setSpecContent] = useState<string>("");
   const [validationError, setValidationError] = useState<string | null>(null);
+  
+  // Use React 18's useTransition to keep UI responsive during complex updates
+  const [isPending, startTransition] = useTransition();
 
   const handleValidationStart = () => {
     setIsLoading(true);
@@ -34,11 +37,21 @@ export default function Home() {
     content: string,
     error?: string
   ) => {
-    setValidationResults(results);
+    // First, update the content immediately - it's less complex
     setSpecContent(content);
-    setValidationError(error || null);
-    setIsLoading(false);
+    
+    // Then, use startTransition to handle the more complex validation results
+    // This ensures the spinner continues to animate while React prepares the results
+    startTransition(() => {
+      setValidationResults(results);
+      setValidationError(error || null);
+      // Only stop loading after the transition is complete
+      setIsLoading(false);
+    });
   };
+
+  // Combine loading state with transition state
+  const showLoading = isLoading || isPending;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -55,10 +68,11 @@ export default function Home() {
         <UploadArea
           onValidationStart={handleValidationStart}
           onValidationComplete={handleValidationComplete}
+          isLoading={showLoading}
         />
 
         <VisualValidator
-          isLoading={isLoading}
+          isLoading={showLoading}
           results={validationResults}
           specContent={specContent}
           error={validationError}

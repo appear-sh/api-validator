@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Upload, FileUp, Check, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -21,11 +21,17 @@ type ValidationResult = {
 interface UploadAreaProps {
   onValidationStart: () => void;
   onValidationComplete: (results: ValidationResult[], specContent: string, error?: string) => void;
+  isLoading?: boolean;
 }
 
-export function UploadArea({ onValidationStart, onValidationComplete }: UploadAreaProps) {
+export function UploadArea({ 
+  onValidationStart, 
+  onValidationComplete, 
+  isLoading: parentIsLoading 
+}: UploadAreaProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [isProcessingResults, setIsProcessingResults] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
 
   const handleFileUpload = useCallback(async (file: File) => {
@@ -36,8 +42,10 @@ export function UploadArea({ onValidationStart, onValidationComplete }: UploadAr
       return
     }
 
+    console.log("Starting file upload and validation...");
     setFileName(file.name)
     setIsUploading(true)
+    setIsProcessingResults(false)
     onValidationStart()
 
     const formData = new FormData()
@@ -53,6 +61,7 @@ export function UploadArea({ onValidationStart, onValidationComplete }: UploadAr
         description: "Could not read the file content locally.",
       })
       setIsUploading(false)
+      setIsProcessingResults(false)
       onValidationComplete([], '', "Could not read file content.")
       return
     }
@@ -69,11 +78,22 @@ export function UploadArea({ onValidationStart, onValidationComplete }: UploadAr
         throw new Error(data.error || `Validation request failed: ${response.statusText}`)
       }
 
+      // Mark that we've received results but are still processing
+      setIsProcessingResults(true)
+      console.log("API validation complete, processing results...");
+      
       // Use sonner toast for success
       toast.success("Validation complete!", {
         description: `Checked across validators.`,
       })
+      
+      // Pass data to parent which will handle the transition
       onValidationComplete(data.results || [], specContent)
+      
+      // Keep the loader running until parent confirms rendering is complete
+      // The parent component will use a delayed state update pattern and
+      // the effect in the parent will update the isLoading state, which will
+      // eventually trickle down as a prop to children
 
     } catch (fetchError) {
       console.error("Validation failed:", fetchError)
@@ -82,11 +102,22 @@ export function UploadArea({ onValidationStart, onValidationComplete }: UploadAr
       toast.error("Validation failed", {
         description: errorMessage,
       })
-      onValidationComplete([], specContent, errorMessage)
-    } finally {
       setIsUploading(false)
+      setIsProcessingResults(false)
+      onValidationComplete([], specContent, errorMessage)
     }
   }, [onValidationStart, onValidationComplete])
+
+  // Update our local loading states when parent changes
+  useEffect(() => {
+    // If parent is no longer loading but we still have processing flags active,
+    // this means the parent has finished processing the results and we can stop our indicators
+    if (parentIsLoading === false && (isUploading || isProcessingResults)) {
+      console.log("Parent finished loading, resetting upload states");
+      setIsUploading(false);
+      setIsProcessingResults(false);
+    }
+  }, [parentIsLoading, isUploading, isProcessingResults]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -113,27 +144,30 @@ export function UploadArea({ onValidationStart, onValidationComplete }: UploadAr
     }
   }, [handleFileUpload])
 
+  // Consider both uploading and processing as active states for UI
+  const isActive = isUploading || isProcessingResults;
+
   return (
     <Card className="mb-8 border-border/40 bg-card/30 backdrop-blur-sm">
       <CardContent className="p-6">
         <div
           className={cn(
             "border-2 border-dashed rounded-lg p-10 text-center transition-all duration-200",
-            isDragging ? "border-primary bg-primary/10" : "border-border/50 hover:border-border/80 hover:bg-card/50",
-            isUploading && "cursor-not-allowed opacity-70"
+            isDragging ? "border-primary bg-primary/10" : "border-border/50 hover:border-primary/30 hover:bg-card/50",
+            isActive && "cursor-not-allowed opacity-70"
           )}
-          onDragOver={isUploading ? undefined : handleDragOver}
-          onDragLeave={isUploading ? undefined : handleDragLeave}
-          onDrop={isUploading ? undefined : handleDrop}
+          onDragOver={isActive ? undefined : handleDragOver}
+          onDragLeave={isActive ? undefined : handleDragLeave}
+          onDrop={isActive ? undefined : handleDrop}
         >
           <div className="flex flex-col items-center justify-center space-y-4">
             <div
               className={cn(
                 "rounded-full p-4 transition-all duration-200",
-                isDragging ? "bg-primary/20" : "bg-primary/10",
+                isDragging ? "bg-primary/20" : "bg-primary/10 group-hover:bg-primary/20",
               )}
             >
-              {isUploading ? (
+              {isActive ? (
                 <Loader2 className="h-8 w-8 text-primary animate-spin" />
               ) : (
                 <Upload className="h-8 w-8 text-primary" />
@@ -142,22 +176,22 @@ export function UploadArea({ onValidationStart, onValidationComplete }: UploadAr
             <div className="space-y-2">
               <h3 className="text-lg font-semibold">Upload your API spec</h3>
               <p className="text-sm text-muted-foreground">
-                {isUploading ? "Processing..." : "Drag and drop your JSON or YAML file here, or click to browse"}
+                {isUploading ? "Processing..." : isProcessingResults ? "Preparing results..." : "Drag and drop your JSON or YAML file here, or click to browse"}
               </p>
             </div>
             <div className="flex gap-2">
               <Button
-                onClick={() => !isUploading && document.getElementById("file-upload")?.click()}
-                disabled={isUploading}
+                onClick={() => !isActive && document.getElementById("file-upload")?.click()}
+                disabled={isActive}
                 variant="outline"
-                className="gap-2 bg-background/50 hover:bg-background/80 transition-colors"
+                className="gap-2 bg-background/50 hover:bg-background/80 hover:text-primary transition-all"
               >
-                {isUploading ? (
+                {isActive ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <FileUp className="h-4 w-4" />
                 )}
-                {isUploading ? "Uploading..." : "Browse Files"}
+                {isUploading ? "Uploading..." : isProcessingResults ? "Processing..." : "Browse Files"}
               </Button>
               <input
                 id="file-upload"
@@ -165,15 +199,15 @@ export function UploadArea({ onValidationStart, onValidationComplete }: UploadAr
                 accept=".json,.yaml,.yml"
                 className="hidden"
                 onChange={handleFileChange}
-                disabled={isUploading}
+                disabled={isActive}
               />
             </div>
             {fileName && (
               <div className="flex items-center gap-2 text-sm mt-2">
-                {isUploading ? (
+                {isActive ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Validating {fileName}...</span>
+                    <span>{isUploading ? `Validating ${fileName}...` : `Processing ${fileName}...`}</span>
                   </>
                 ) : (
                   <>
