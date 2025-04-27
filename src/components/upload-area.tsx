@@ -149,10 +149,10 @@ export function UploadArea({
 
   return (
     <Card className="mb-8 border-border/40 bg-card/30 backdrop-blur-sm">
-      <CardContent className="p-6">
+      <CardContent className="p-4">
         <div
           className={cn(
-            "border-2 border-dashed rounded-lg p-10 text-center transition-all duration-200",
+            "border-2 border-dashed rounded-lg p-4 transition-all duration-200",
             isDragging ? "border-primary bg-primary/10" : "border-border/50 hover:border-primary/30 hover:bg-card/50",
             isActive && "cursor-not-allowed opacity-70"
           )}
@@ -160,63 +160,63 @@ export function UploadArea({
           onDragLeave={isActive ? undefined : handleDragLeave}
           onDrop={isActive ? undefined : handleDrop}
         >
-          <div className="flex flex-col items-center justify-center space-y-4">
-            <div
-              className={cn(
-                "rounded-full p-4 transition-all duration-200",
-                isDragging ? "bg-primary/20" : "bg-primary/10 group-hover:bg-primary/20",
-              )}
-            >
-              {isActive ? (
-                <Loader2 className="h-8 w-8 text-primary animate-spin" />
-              ) : (
-                <Upload className="h-8 w-8 text-primary" />
-              )}
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold">Upload your API spec</h3>
-              <p className="text-sm text-muted-foreground">
-                {isUploading ? "Processing..." : isProcessingResults ? "Preparing results..." : "Drag and drop your JSON or YAML file here, or click to browse"}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => !isActive && document.getElementById("file-upload")?.click()}
-                disabled={isActive}
-                variant="outline"
-                className="gap-2 bg-background/50 hover:bg-background/80 hover:text-primary transition-all"
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div
+                className={cn(
+                  "rounded-full p-3 transition-all duration-200",
+                  isDragging ? "bg-primary/20" : "bg-primary/10 group-hover:bg-primary/20",
+                )}
               >
                 {isActive ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-6 w-6 text-primary animate-spin" />
                 ) : (
-                  <FileUp className="h-4 w-4" />
-                )}
-                {isUploading ? "Uploading..." : isProcessingResults ? "Processing..." : "Browse Files"}
-              </Button>
-              <input
-                id="file-upload"
-                type="file"
-                accept=".json,.yaml,.yml"
-                className="hidden"
-                onChange={handleFileChange}
-                disabled={isActive}
-              />
-            </div>
-            {fileName && (
-              <div className="flex items-center gap-2 text-sm mt-2">
-                {isActive ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>{isUploading ? `Validating ${fileName}...` : `Processing ${fileName}...`}</span>
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4 text-green-500" />
-                    <span>Ready: {fileName}</span>
-                  </>
+                  <Upload className="h-6 w-6 text-primary" />
                 )}
               </div>
-            )}
+              <div>
+                <h3 className="text-base font-semibold">Upload your API spec</h3>
+                <p className="text-sm text-muted-foreground">
+                  {isUploading ? "Processing..." : isProcessingResults ? "Preparing results..." : "Drag and drop your JSON or YAML file here, or click to browse"}
+                </p>
+                {fileName && (
+                  <div className="flex items-center gap-2 text-sm mt-1">
+                    {isActive ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span>{isUploading ? `Validating ${fileName}...` : `Processing ${fileName}...`}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-3 w-3 text-green-500" />
+                        <span>Ready: {fileName}</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            <Button
+              onClick={() => !isActive && document.getElementById("file-upload")?.click()}
+              disabled={isActive}
+              variant="outline"
+              className="gap-2 bg-background/50 hover:bg-background/80 hover:text-primary transition-all whitespace-nowrap"
+            >
+              {isActive ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileUp className="h-4 w-4" />
+              )}
+              {isUploading ? "Uploading..." : isProcessingResults ? "Processing..." : "Browse"}
+            </Button>
+            <input
+              id="file-upload"
+              type="file"
+              accept=".json,.yaml,.yml"
+              className="hidden"
+              onChange={handleFileChange}
+              disabled={isActive}
+            />
           </div>
         </div>
       </CardContent>

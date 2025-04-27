@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { UploadArea } from "@/components/upload-area"
 import { VisualValidator } from "@/components/visual-validator"
 import { Toaster } from "@/components/ui/sonner"
+import { Header } from "@/components/header"
 
 // Re-define the shared result type (or import from a shared types file if preferred)
 type ValidationResult = {
@@ -55,6 +56,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <Header />
       <div className="max-w-[1800px] mx-auto py-8 px-4 w-full">
         <header className="mb-8 text-center">
           <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-zinc-400 to-zinc-200 text-transparent bg-clip-text">
