@@ -26,11 +26,15 @@ export default function Home() {
   // Use React 18's useTransition to keep UI responsive during complex updates
   const [isPending, startTransition] = useTransition();
 
+  // Add score state if needed, or calculate it based on results
+  const [apiScore, setApiScore] = useState<number>(0); // Placeholder state
+
   const handleValidationStart = () => {
     setIsLoading(true);
     setValidationResults([]);
     setSpecContent("");
     setValidationError(null);
+    setApiScore(0); // Reset score
   };
 
   const handleValidationComplete = (
@@ -38,15 +42,18 @@ export default function Home() {
     content: string,
     error?: string
   ) => {
-    // First, update the content immediately - it's less complex
     setSpecContent(content);
     
-    // Then, use startTransition to handle the more complex validation results
-    // This ensures the spinner continues to animate while React prepares the results
     startTransition(() => {
       setValidationResults(results);
       setValidationError(error || null);
-      // Only stop loading after the transition is complete
+      
+      // Placeholder: Calculate score based on results
+      // Example: Simple calculation based on number of errors
+      const errorCount = results.filter(r => r.severity === 'error').length;
+      const calculatedScore = Math.max(0, 100 - (errorCount * 10)); // Simple example
+      setApiScore(calculatedScore); 
+
       setIsLoading(false);
     });
   };
@@ -58,7 +65,7 @@ export default function Home() {
     <div className="min-h-screen bg-background text-foreground">
       <Header />
       <div className="max-w-[1800px] mx-auto py-8 px-4 w-full">
-        <header className="mb-8 text-center">
+        <header className="mb-8 text-center max-w-6xl mx-auto">
           <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-zinc-100 to-zinc-50 text-transparent bg-clip-text">
             API Validator
           </h1>
@@ -67,17 +74,21 @@ export default function Home() {
           </p>
         </header>
 
-        <UploadArea
-          onValidationStart={handleValidationStart}
-          onValidationComplete={handleValidationComplete}
-          isLoading={showLoading}
-        />
+        {/* Wrap UploadArea to apply max-width */}
+        <div className="max-w-6xl mx-auto mb-8">
+          <UploadArea
+            onValidationStart={handleValidationStart}
+            onValidationComplete={handleValidationComplete}
+            isLoading={showLoading}
+          />
+        </div>
 
         <VisualValidator
           isLoading={showLoading}
           results={validationResults}
           specContent={specContent}
           error={validationError}
+          score={apiScore}
         />
       </div>
       <Toaster richColors closeButton />

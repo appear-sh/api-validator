@@ -16,6 +16,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { LottieLoader } from "@/components/ui/lottie-loader"
 import { toast } from "sonner"
+import { ScoreDisplay } from "@/components/score-display"
 
 // Define the shared result type (matching page.tsx and backend)
 type ValidationResult = {
@@ -33,6 +34,7 @@ interface VisualValidatorProps {
   results: ValidationResult[];
   specContent: string;
   error: string | null;
+  score: number;
 }
 
 // Marker component for validation issues
@@ -314,7 +316,7 @@ const IssueItem = React.memo(({
 ));
 IssueItem.displayName = 'IssueItem';
 
-export function VisualValidator({ isLoading, results, specContent, error }: VisualValidatorProps) {
+export function VisualValidator({ isLoading, results, specContent, error, score }: VisualValidatorProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedSeverities, setSelectedSeverities] = useState<string[]>(["error", "warning", "info"])
   const [enabledValidators, setEnabledValidators] = useState<string[]>([])
@@ -552,157 +554,167 @@ export function VisualValidator({ isLoading, results, specContent, error }: Visu
       "space-y-6 transition-all duration-300 max-w-[1800px] mx-auto", 
       isTransitioning ? "opacity-0 translate-y-2" : "opacity-100 translate-y-0"
     )}>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold">Validation Results</h2>
-          <p className="text-muted-foreground">
-            Comparing results for the uploaded spec
-          </p>
+      {/* Wrap header section */}
+      <div className="max-w-6xl mx-auto px-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-bold">Validation Results</h2>
+            <p className="text-muted-foreground">
+              Comparing results for the uploaded spec
+            </p>
+          </div>
+          <div className="shrink-0">
+            <ScoreDisplay score={score} />
+          </div>
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search issues by message or path..."
-            className="pl-8 bg-background/50 border-border/50 focus-visible:border-primary/50"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
+      {/* Wrap search/filter section */}
+      <div className="max-w-6xl mx-auto px-4">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search issues by message or path..."
+              className="pl-8 bg-background/50 border-border/50 focus-visible:border-primary/50"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
 
-        <div className="flex gap-2">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleCopyResults}
-                  className="bg-background/50 hover:bg-background/80 transition-all cursor-pointer"
-                >
-                  <Copy className="h-4 w-4 transition-colors hover:text-primary" />
+          <div className="flex gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCopyResults}
+                    className="bg-background/50 hover:bg-background/80 transition-all cursor-pointer"
+                  >
+                    <Copy className="h-4 w-4 transition-colors hover:text-primary" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Copy results to clipboard</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleDownloadResults}
+                    className="bg-background/50 hover:bg-background/80 transition-all cursor-pointer"
+                  >
+                    <Download className="h-4 w-4 transition-colors hover:text-primary" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Download results as JSON</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon" className="lg:hidden bg-background/50 hover:bg-background/80 cursor-pointer transition-colors">
+                  <Filter className="h-4 w-4 hover:text-primary" />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Copy results to clipboard</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleDownloadResults}
-                  className="bg-background/50 hover:bg-background/80 transition-all cursor-pointer"
-                >
-                  <Download className="h-4 w-4 transition-colors hover:text-primary" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Download results as JSON</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="lg:hidden bg-background/50 hover:bg-background/80 cursor-pointer transition-colors">
-                <Filter className="h-4 w-4 hover:text-primary" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left">
-              <SheetHeader>
-                <SheetTitle>Filters</SheetTitle>
-                <SheetDescription>Configure which validators and issue types to display</SheetDescription>
-              </SheetHeader>
-              <div className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <h4 className="text-sm font-semibold mb-2">Validators</h4>
-                  {uniqueSources.map((source) => (
-                    <div key={source} className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors">
-                      <Checkbox
-                        id={`mobile-validator-${source}`}
-                        checked={enabledValidators.includes(source)}
-                        onCheckedChange={() => toggleValidator(source)}
-                        className="cursor-pointer"
-                      />
-                      <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleValidator(source)}>
-                        <div className={`w-3 h-3 rounded-full ${getValidatorColor(source)}`}></div>
-                        <label
-                          htmlFor={`mobile-validator-${source}`}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer group-hover:text-primary/90 transition-colors"
-                        >
-                          {source}
-                        </label>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="pt-4 border-t border-border/40">
-                  <h4 className="text-sm font-semibold mb-2">Severity</h4>
+              </SheetTrigger>
+              <SheetContent side="left">
+                <SheetHeader>
+                  <SheetTitle>Filters</SheetTitle>
+                  <SheetDescription>Configure which validators and issue types to display</SheetDescription>
+                </SheetHeader>
+                <div className="space-y-4 mt-4">
                   <div className="space-y-2">
-                    <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors">
-                      <Checkbox
-                        id="mobile-severity-error"
-                        checked={selectedSeverities.includes("error")}
-                        onCheckedChange={() => toggleSeverity("error")}
-                        className="cursor-pointer"
-                      />
-                      <div className="cursor-pointer" onClick={() => toggleSeverity("error")}>
-                        <label
-                          htmlFor="mobile-severity-error"
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-red-400 cursor-pointer group-hover:text-red-500 transition-colors"
-                        >
-                          Errors
-                        </label>
+                    <h4 className="text-sm font-semibold mb-2">Validators</h4>
+                    {uniqueSources.map((source) => (
+                      <div key={source} className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors">
+                        <Checkbox
+                          id={`mobile-validator-${source}`}
+                          checked={enabledValidators.includes(source)}
+                          onCheckedChange={() => toggleValidator(source)}
+                          className="cursor-pointer"
+                        />
+                        <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleValidator(source)}>
+                          <div className={`w-3 h-3 rounded-full ${getValidatorColor(source)}`}></div>
+                          <label
+                            htmlFor={`mobile-validator-${source}`}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer group-hover:text-primary/90 transition-colors"
+                          >
+                            {source}
+                          </label>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors">
-                      <Checkbox
-                        id="mobile-severity-warning"
-                        checked={selectedSeverities.includes("warning")}
-                        onCheckedChange={() => toggleSeverity("warning")}
-                        className="cursor-pointer"
-                      />
-                      <div className="cursor-pointer" onClick={() => toggleSeverity("warning")}>
-                        <label
-                          htmlFor="mobile-severity-warning"
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-amber-400 cursor-pointer group-hover:text-amber-500 transition-colors"
-                        >
-                          Warnings
-                        </label>
+                    ))}
+                  </div>
+
+                  <div className="pt-4 border-t border-border/40">
+                    <h4 className="text-sm font-semibold mb-2">Severity</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors">
+                        <Checkbox
+                          id="mobile-severity-error"
+                          checked={selectedSeverities.includes("error")}
+                          onCheckedChange={() => toggleSeverity("error")}
+                          className="cursor-pointer"
+                        />
+                        <div className="cursor-pointer" onClick={() => toggleSeverity("error")}>
+                          <label
+                            htmlFor="mobile-severity-error"
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-red-400 cursor-pointer group-hover:text-red-500 transition-colors"
+                          >
+                            Errors
+                          </label>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors">
-                      <Checkbox
-                        id="mobile-severity-info"
-                        checked={selectedSeverities.includes("info")}
-                        onCheckedChange={() => toggleSeverity("info")}
-                        className="cursor-pointer"
-                      />
-                      <div className="cursor-pointer" onClick={() => toggleSeverity("info")}>
-                        <label
-                          htmlFor="mobile-severity-info"
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-400 cursor-pointer group-hover:text-zinc-300 transition-colors"
-                        >
-                          Info
-                        </label>
+                      <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors">
+                        <Checkbox
+                          id="mobile-severity-warning"
+                          checked={selectedSeverities.includes("warning")}
+                          onCheckedChange={() => toggleSeverity("warning")}
+                          className="cursor-pointer"
+                        />
+                        <div className="cursor-pointer" onClick={() => toggleSeverity("warning")}>
+                          <label
+                            htmlFor="mobile-severity-warning"
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-amber-400 cursor-pointer group-hover:text-amber-500 transition-colors"
+                          >
+                            Warnings
+                          </label>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors">
+                        <Checkbox
+                          id="mobile-severity-info"
+                          checked={selectedSeverities.includes("info")}
+                          onCheckedChange={() => toggleSeverity("info")}
+                          className="cursor-pointer"
+                        />
+                        <div className="cursor-pointer" onClick={() => toggleSeverity("info")}>
+                          <label
+                            htmlFor="mobile-severity-info"
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-400 cursor-pointer group-hover:text-zinc-300 transition-colors"
+                          >
+                            Info
+                          </label>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </SheetContent>
-          </Sheet>
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
       </div>
 
+      {/* Results grid - Keep this OUTSIDE the max-width wrappers */}
       <div className="flex flex-col lg:flex-row gap-4">
         <Card className="lg:w-[17%] hidden lg:block border-border/40 bg-card/30 backdrop-blur-sm">
           <CardHeader className="pb-3">
