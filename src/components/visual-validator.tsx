@@ -259,7 +259,7 @@ const IssueItem = React.memo(({
 }) => (
   <div
     className={cn(
-      "p-2 rounded-md cursor-pointer transition-all duration-200 border overflow-hidden mx-left max-w-[70%]",
+      "p-2 rounded-md cursor-pointer transition-all duration-200 border overflow-hidden mx-left",
       "hover:shadow-md hover:translate-y-[-2px]",
       issue.code.includes("SUCCESS") 
         ? "border-green-500/20 bg-green-500/5 hover:bg-green-500/10 hover:border-green-500/30" 

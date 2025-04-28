@@ -5,6 +5,7 @@ import { UploadArea } from "@/components/upload-area"
 import { VisualValidator } from "@/components/visual-validator"
 import { Toaster } from "@/components/ui/sonner"
 import { Header } from "@/components/header"
+import { calculateApiScore } from '@/lib/calculate-api-score'; // Import the scoring function
 
 // Re-define the shared result type (or import from a shared types file if preferred)
 type ValidationResult = {
@@ -26,8 +27,8 @@ export default function Home() {
   // Use React 18's useTransition to keep UI responsive during complex updates
   const [isPending, startTransition] = useTransition();
 
-  // Add score state if needed, or calculate it based on results
-  const [apiScore, setApiScore] = useState<number>(0); // Placeholder state
+  // Keep score state
+  const [apiScore, setApiScore] = useState<number>(0);
 
   const handleValidationStart = () => {
     setIsLoading(true);
@@ -48,11 +49,27 @@ export default function Home() {
       setValidationResults(results);
       setValidationError(error || null);
       
-      // Placeholder: Calculate score based on results
-      // Example: Simple calculation based on number of errors
-      const errorCount = results.filter(r => r.severity === 'error').length;
-      const calculatedScore = Math.max(0, 100 - (errorCount * 10)); // Simple example
-      setApiScore(calculatedScore); 
+      let calculatedOverallScore = 0;
+      // Only calculate score if content is available and no major validation error occurred
+      if (content && !error) {
+        try {
+          // Calculate the score using the utility function
+          // Note: calculateApiScore handles internal parsing errors
+          const scoreDetails = calculateApiScore(results, content);
+          calculatedOverallScore = scoreDetails.overallScore;
+          console.log('Dimensional Scores:', scoreDetails.dimensionalScores); // Log dimensions for info
+        } catch (scoreError: unknown) {
+          // Handle potential errors during score calculation itself (though parsing errors handled within)
+          console.error("Error calculating API score:", scoreError);
+          // Optionally, check the type of scoreError before accessing properties
+          const errorMessage = scoreError instanceof Error ? scoreError.message : String(scoreError);
+          setValidationError((prevError) => 
+            prevError ? `${prevError}\nScore calculation failed: ${errorMessage}` : `Score calculation failed: ${errorMessage}`
+          );
+          calculatedOverallScore = 0; // Default to 0 on error
+        }
+      }
+      setApiScore(calculatedOverallScore);
 
       setIsLoading(false);
     });
