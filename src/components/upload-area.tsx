@@ -175,7 +175,7 @@ export function UploadArea({
                 )}
               </div>
               <div>
-                <h3 className="text-base font-semibold">Upload your API spec</h3>
+                <h3 className="text-base font-semibold">Upload your OpenAPI 3.x spec</h3>
                 <p className="text-sm text-muted-foreground">
                   {isUploading ? "Processing..." : isProcessingResults ? "Preparing results..." : "Drag and drop your JSON or YAML file here, or click to browse"}
                 </p>

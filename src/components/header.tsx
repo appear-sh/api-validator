@@ -3,55 +3,77 @@
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { ChevronDown } from "lucide-react"
 
 export function Header() {
   return (
     <header className="border-b border-zinc-950">
       <div className="container mx-auto px-4 flex h-16 items-center justify-between">
         <div className="flex items-center">
-          <Link href="/" className="mr-8">
-            <div className="flex items-center">
-              <Image 
-                src="/Appear Logo v3.png" 
-                alt="Appear Logo" 
-                width={161} 
-                height={33}
+          <div className="flex items-center gap-2 mr-8">
+            <Link href="https://appear.sh" className="group">
+              <Image
+                src="/Appear Logo v3.png"
+                alt="Appear Logo"
+                width={110}
+                height={30}
                 priority
+                className="group-hover:opacity-90 transition-opacity"
               />
-            </div>
-          </Link>
-          <nav className="hidden md:flex items-center space-x-8">
-            <Link 
-              href="https://appear.sh/product-map" 
-              className="text-gray-300 hover:text-white transition-colors text-md font-medium"
-            >
-              Product map
             </Link>
-            <Link 
-              href="https://docs.appear.shs" 
-              className="text-gray-300 hover:text-white transition-colors text-md font-medium"
-            >
-              Docs
-            </Link>
-          </nav>
+            <span className="text-white font-medium text-lg">
+              <span className="text-zinc-500">/</span> API Validator
+            </span>
+          </div>
         </div>
-        <div className="flex items-center space-x-4">
-          <Link 
-            href="https://cal.com/appear.sh/demo?overlayCalendar=true" 
-            className="text-sm"
+        <div className="flex items-center space-x-2">
+          <Link
+            href="https://github.com/appear-sh/api-validator"
+            target="_blank"
+            rel="noopener noreferrer"
           >
-            <Button variant="outline" className="text-md font-medium border-gray-700 hover:border-gray-500 text-white bg-transparent hover:bg-transparent">
-              Get demo
+            <Button variant="outline" size="sm" className="gap-2 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900">
+              <Image
+                src="/github-mark-white.png"
+                alt="GitHub Logo"
+                width={16}
+                height={16}
+              />
+              GitHub
             </Button>
           </Link>
-          <Link 
-            href="https://app.appear.sh/sign-in" 
-            className="text-sm"
-          >
-            <Button className="text-md font-medium bg-white text-black hover:bg-gray-100 border-0">
-              Sign In
-            </Button>
-          </Link>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900">
+                More Tools <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-zinc-950 border-zinc-800 text-zinc-300">
+              <DropdownMenuItem asChild className="hover:bg-zinc-800 cursor-pointer">
+                <Link
+                  href="https://github.com/appear-sh/OAS-Zod-Validator"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2"
+                >
+                  <Image 
+                    src="/github-mark-white.png"
+                    alt="GitHub Logo"
+                    width={16}
+                    height={16}
+                  />
+                  OAS Zod Validator
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>
