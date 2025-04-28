@@ -1,10 +1,44 @@
+<!-- PROJECT LOGO -->
+<p align="center">
+  <a href="https://github.com/appear-sh/api-validator">
+   <img src="" alt="Logo">
+  </a>
+
+  <h3 align="center">OAS Zod Validator</h3>
+
+  <p align="center">
+    An OpenAPI Spec Validator and Linting tool using opensource tools, including our OAS Zod Validator . From Appear.
+    <br />
+    <a href="https://docs.appear.sh/resources/open-source"><strong>Learn more »</strong></a>
+    <br />
+    <br />
+    <a href="https://www.appear.sh">Appear Website</a>
+    ·
+    <a href="https://github.com/appear-sh/api-validator/issues">Issues</a>
+    ·
+    <a href="https://www.appear.sh/productmap">Appear Product Map</a>
+  </p>
+</p>
+
 # API Validator
 
-## Purpose
+An API Validator tool which exists to showcase our OAS Zod Validator tool in concert with third-party validators and linters to offer a blended report on the quality of your spec, supporting both OAS 3.0.x and 3.1 specifications.
 
-API Validator exists to showcase our Validation tooling in concert with incumbents to build trust and example how we aim to uplift the API landscape by improving quality and maturity.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-This tool is intended for internal demonstration and development purposes.
+<!-- ABOUT THE PROJECT -->
+
+## Features
+
+- Validates OpenAPI 3.0.x and 3.1 specs (YAML or JSON)
+- Runs multiple open source validators (including OAS Zod Validator, Spectral, SwaggerParser) for a blended, comparative report
+- Maps validation and linting errors directly to your uploaded spec, with clear path and message details
+- Provides an interactive web UI for uploading, viewing, and exploring results—no CLI required
+- Calculates an overall API quality score based on combined validator results
+- Supports drag-and-drop or file browsing for spec upload
+- Displays real-time feedback and progress during validation
+- Highlights issues by severity (error, warning, info) and by source validator
+- No external runtime dependencies required for the web app (all validation runs server-side)
 
 ## Getting Started
 
