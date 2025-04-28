@@ -59,7 +59,7 @@ export default function Home() {
       <Header />
       <div className="max-w-[1800px] mx-auto py-8 px-4 w-full">
         <header className="mb-8 text-center">
-          <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-zinc-400 to-zinc-200 text-transparent bg-clip-text">
+          <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-zinc-100 to-zinc-50 text-transparent bg-clip-text">
             API Spec Validator
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">

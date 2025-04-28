@@ -128,7 +128,16 @@ function IssueMarker({
           onClick={() => scrollToLine(lineNumber)}
         ></div>
       </TooltipTrigger>
-      <TooltipContent side="left" className="max-w-xs">
+      <TooltipContent side="left" className={cn(
+        "max-w-xs border overflow-hidden shadow-md transition-all duration-200 text-gray-100",
+        issue.code?.includes("SUCCESS") 
+          ? "border-green-500/50 bg-green-950" 
+          : issue.severity === "error"
+            ? "border-red-500/50 bg-red-950"
+            : issue.severity === "warning"
+              ? "border-amber-500/50 bg-amber-950"
+              : "border-zinc-500/50 bg-zinc-900"
+      )}>
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span
@@ -144,11 +153,24 @@ function IssueMarker({
               {issue.severity}
             </span>
           </div>
-          <p className="font-medium text-sm">{issue.message}</p>
+          <p className="font-medium text-sm text-gray-100">{issue.message}</p>
           {issue.path && issue.path.length > 0 && (
-            <code className="px-1 py-0.5 bg-muted rounded text-xs block mt-1 opacity-80">
+            <code className="px-1 py-0.5 bg-zinc-800 rounded text-xs block mt-1 text-gray-300 overflow-hidden text-ellipsis whitespace-nowrap">
               {issue.path.join('.')}
             </code>
+          )}
+          {issue.range?.start?.line !== undefined && (
+            <div className="flex justify-end mt-1">
+              <button
+                className="text-xs text-gray-300 hover:text-primary transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  scrollToLine(issue.range!.start.line + 1);
+                }}
+              >
+                Go to line {issue.range.start.line + 1}
+              </button>
+            </div>
           )}
         </div>
       </TooltipContent>
@@ -235,7 +257,8 @@ const IssueItem = React.memo(({
 }) => (
   <div
     className={cn(
-      "p-3 rounded-md cursor-pointer transition-all duration-200 border",
+      "p-2 rounded-md cursor-pointer transition-all duration-200 border overflow-hidden mx-left max-w-[70%]",
+      "hover:shadow-md hover:translate-y-[-2px]",
       issue.code.includes("SUCCESS") 
         ? "border-green-500/20 bg-green-500/5 hover:bg-green-500/10 hover:border-green-500/30" 
         : issue.severity === "error"
@@ -247,10 +270,10 @@ const IssueItem = React.memo(({
     onClick={() => issue.range?.start?.line !== undefined && scrollToLine(issue.range.start.line + 1)}
   >
     <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <span
           className={cn(
-            "text-xs px-1.5 py-0.5 rounded-full text-white",
+            "text-xs px-1.5 py-0.5 rounded-full text-white whitespace-nowrap",
             getValidatorColor(issue.source)
           )}
         >
@@ -265,11 +288,11 @@ const IssueItem = React.memo(({
           {issue.code.includes("SUCCESS") ? "Success" : issue.severity}
         </span>
       </div>
-      <p className="text-sm">
+      <p className="text-xs line-clamp-3 text-gray-300">
         {issue.message}
       </p>
       {issue.path && issue.path.length > 0 && (
-        <code className="px-1 py-0.5 bg-muted rounded text-xs block mt-1 opacity-80">
+        <code className="px-1 py-0.5 bg-muted rounded text-xs block mt-1 opacity-80 overflow-hidden text-ellipsis whitespace-nowrap">
           {issue.path.join('.')}
         </code>
       )}
@@ -526,7 +549,7 @@ export function VisualValidator({ isLoading, results, specContent, error }: Visu
 
   return (
     <div className={cn(
-      "space-y-6 transition-all duration-300", 
+      "space-y-6 transition-all duration-300 max-w-[1800px] mx-auto", 
       isTransitioning ? "opacity-0 translate-y-2" : "opacity-100 translate-y-0"
     )}>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -557,7 +580,7 @@ export function VisualValidator({ isLoading, results, specContent, error }: Visu
                   variant="outline"
                   size="icon"
                   onClick={handleCopyResults}
-                  className="bg-background/50 hover:bg-background/80 transition-all"
+                  className="bg-background/50 hover:bg-background/80 transition-all cursor-pointer"
                 >
                   <Copy className="h-4 w-4 transition-colors hover:text-primary" />
                 </Button>
@@ -575,7 +598,7 @@ export function VisualValidator({ isLoading, results, specContent, error }: Visu
                   variant="outline"
                   size="icon"
                   onClick={handleDownloadResults}
-                  className="bg-background/50 hover:bg-background/80 transition-all"
+                  className="bg-background/50 hover:bg-background/80 transition-all cursor-pointer"
                 >
                   <Download className="h-4 w-4 transition-colors hover:text-primary" />
                 </Button>
@@ -601,14 +624,14 @@ export function VisualValidator({ isLoading, results, specContent, error }: Visu
                 <div className="space-y-2">
                   <h4 className="text-sm font-semibold mb-2">Validators</h4>
                   {uniqueSources.map((source) => (
-                    <div key={source} className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors" onClick={() => toggleValidator(source)}>
+                    <div key={source} className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors">
                       <Checkbox
                         id={`mobile-validator-${source}`}
                         checked={enabledValidators.includes(source)}
                         onCheckedChange={() => toggleValidator(source)}
                         className="cursor-pointer"
                       />
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleValidator(source)}>
                         <div className={`w-3 h-3 rounded-full ${getValidatorColor(source)}`}></div>
                         <label
                           htmlFor={`mobile-validator-${source}`}
@@ -624,47 +647,53 @@ export function VisualValidator({ isLoading, results, specContent, error }: Visu
                 <div className="pt-4 border-t border-border/40">
                   <h4 className="text-sm font-semibold mb-2">Severity</h4>
                   <div className="space-y-2">
-                    <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors" onClick={() => toggleSeverity("error")}>
+                    <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors">
                       <Checkbox
                         id="mobile-severity-error"
                         checked={selectedSeverities.includes("error")}
                         onCheckedChange={() => toggleSeverity("error")}
                         className="cursor-pointer"
                       />
-                      <label
-                        htmlFor="mobile-severity-error"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-red-400 cursor-pointer group-hover:text-red-500 transition-colors"
-                      >
-                        Errors
-                      </label>
+                      <div className="cursor-pointer" onClick={() => toggleSeverity("error")}>
+                        <label
+                          htmlFor="mobile-severity-error"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-red-400 cursor-pointer group-hover:text-red-500 transition-colors"
+                        >
+                          Errors
+                        </label>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors" onClick={() => toggleSeverity("warning")}>
+                    <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors">
                       <Checkbox
                         id="mobile-severity-warning"
                         checked={selectedSeverities.includes("warning")}
                         onCheckedChange={() => toggleSeverity("warning")}
                         className="cursor-pointer"
                       />
-                      <label
-                        htmlFor="mobile-severity-warning"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-amber-400 cursor-pointer group-hover:text-amber-500 transition-colors"
-                      >
-                        Warnings
-                      </label>
+                      <div className="cursor-pointer" onClick={() => toggleSeverity("warning")}>
+                        <label
+                          htmlFor="mobile-severity-warning"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-amber-400 cursor-pointer group-hover:text-amber-500 transition-colors"
+                        >
+                          Warnings
+                        </label>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors" onClick={() => toggleSeverity("info")}>
+                    <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors">
                       <Checkbox
                         id="mobile-severity-info"
                         checked={selectedSeverities.includes("info")}
                         onCheckedChange={() => toggleSeverity("info")}
                         className="cursor-pointer"
                       />
-                      <label
-                        htmlFor="mobile-severity-info"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-400 cursor-pointer group-hover:text-zinc-300 transition-colors"
-                      >
-                        Info
-                      </label>
+                      <div className="cursor-pointer" onClick={() => toggleSeverity("info")}>
+                        <label
+                          htmlFor="mobile-severity-info"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-400 cursor-pointer group-hover:text-zinc-300 transition-colors"
+                        >
+                          Info
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -675,7 +704,7 @@ export function VisualValidator({ isLoading, results, specContent, error }: Visu
       </div>
 
       <div className="flex flex-col lg:flex-row gap-4">
-        <Card className="lg:w-1/4 hidden lg:block border-border/40 bg-card/30 backdrop-blur-sm">
+        <Card className="lg:w-[17%] hidden lg:block border-border/40 bg-card/30 backdrop-blur-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg">Validators</CardTitle>
           </CardHeader>
@@ -683,14 +712,14 @@ export function VisualValidator({ isLoading, results, specContent, error }: Visu
             <div className="space-y-4">
               <div className="space-y-2">
                 {uniqueSources.map((source) => (
-                  <div key={source} className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors" onClick={() => toggleValidator(source)}>
+                  <div key={source} className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors">
                     <Checkbox
                       id={`validator-${source}`}
                       checked={enabledValidators.includes(source)}
                       onCheckedChange={() => toggleValidator(source)}
                       className="cursor-pointer"
                     />
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleValidator(source)}>
                       <div className={`w-3 h-3 rounded-full ${getValidatorColor(source)}`}></div>
                       <label
                         htmlFor={`validator-${source}`}
@@ -706,47 +735,53 @@ export function VisualValidator({ isLoading, results, specContent, error }: Visu
               <div className="pt-4 border-t border-border/40">
                 <h4 className="text-sm font-semibold mb-2">Severity</h4>
                 <div className="space-y-2">
-                  <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors" onClick={() => toggleSeverity("error")}>
+                  <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors">
                     <Checkbox
                       id="severity-error"
                       checked={selectedSeverities.includes("error")}
                       onCheckedChange={() => toggleSeverity("error")}
                       className="cursor-pointer"
                     />
-                    <label
-                      htmlFor="severity-error"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-red-400 cursor-pointer group-hover:text-red-500 transition-colors"
-                    >
-                      Errors
-                    </label>
+                    <div className="cursor-pointer" onClick={() => toggleSeverity("error")}>
+                      <label
+                        htmlFor="severity-error"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-red-400 cursor-pointer group-hover:text-red-500 transition-colors"
+                      >
+                        Errors
+                      </label>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors" onClick={() => toggleSeverity("warning")}>
+                  <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors">
                     <Checkbox
                       id="severity-warning"
                       checked={selectedSeverities.includes("warning")}
                       onCheckedChange={() => toggleSeverity("warning")}
                       className="cursor-pointer"
                     />
-                    <label
-                      htmlFor="severity-warning"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-amber-400 cursor-pointer group-hover:text-amber-500 transition-colors"
-                    >
-                      Warnings
-                    </label>
+                    <div className="cursor-pointer" onClick={() => toggleSeverity("warning")}>
+                      <label
+                        htmlFor="severity-warning"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-amber-400 cursor-pointer group-hover:text-amber-500 transition-colors"
+                      >
+                        Warnings
+                      </label>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors" onClick={() => toggleSeverity("info")}>
+                  <div className="flex items-center space-x-2 group hover:bg-primary/5 rounded p-1 cursor-pointer transition-colors">
                     <Checkbox
                       id="severity-info"
                       checked={selectedSeverities.includes("info")}
                       onCheckedChange={() => toggleSeverity("info")}
                       className="cursor-pointer"
                     />
-                    <label
-                      htmlFor="severity-info"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-400 cursor-pointer group-hover:text-zinc-300 transition-colors"
-                    >
-                      Info
-                    </label>
+                    <div className="cursor-pointer" onClick={() => toggleSeverity("info")}>
+                      <label
+                        htmlFor="severity-info"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-400 cursor-pointer group-hover:text-zinc-300 transition-colors"
+                      >
+                        Info
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -754,7 +789,7 @@ export function VisualValidator({ isLoading, results, specContent, error }: Visu
           </CardContent>
         </Card>
 
-        <div className="relative lg:max-w-4xl lg:flex-grow lg:flex-shrink">
+        <div className="relative lg:w-[48%]">
           <Card className="overflow-hidden border-border/40 bg-card/30 backdrop-blur-sm h-full">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg">API Specification</CardTitle>
@@ -813,7 +848,7 @@ export function VisualValidator({ isLoading, results, specContent, error }: Visu
           </Card>
         </div>
 
-        <Card className="lg:flex-1 border-border/40 bg-card/30 backdrop-blur-sm">
+        <Card className="lg:w-[35%] border-border/40 bg-card/30 backdrop-blur-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg">Issues ({filteredIssues.length})</CardTitle>
           </CardHeader>
