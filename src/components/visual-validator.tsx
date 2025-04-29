@@ -259,7 +259,7 @@ const IssueItem = React.memo(({
 }) => (
   <div
     className={cn(
-      "p-2 rounded-md cursor-pointer transition-all duration-200 border overflow-hidden mx-left",
+      "p-2 rounded-md cursor-pointer transition-all duration-200 border overflow-hidden w-full max-w-full box-border",
       "hover:shadow-md hover:translate-y-[-2px]",
       issue.code.includes("SUCCESS") 
         ? "border-green-500/20 bg-green-500/5 hover:bg-green-500/10 hover:border-green-500/30" 
@@ -269,10 +269,11 @@ const IssueItem = React.memo(({
             ? "border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 hover:border-amber-500/30"
             : "border-zinc-500/20 bg-zinc-500/5 hover:bg-zinc-500/10 hover:border-zinc-500/30",
     )}
+    style={{ width: "100%", maxWidth: "500px", marginLeft: "auto", marginRight: "auto" }}
     onClick={() => issue.range?.start?.line !== undefined && scrollToLine(issue.range.start.line + 1)}
   >
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2 flex-wrap">
+    <div className="flex flex-col gap-1 w-full max-w-full">
+      <div className="flex items-center gap-2 flex-wrap w-full max-w-full">
         <span
           className={cn(
             "text-xs px-1.5 py-0.5 rounded-full text-white whitespace-nowrap",
@@ -290,16 +291,16 @@ const IssueItem = React.memo(({
           {issue.code.includes("SUCCESS") ? "Success" : issue.severity}
         </span>
       </div>
-      <p className="text-xs line-clamp-3 text-gray-300">
+      <p className="text-xs line-clamp-3 text-gray-300 w-full max-w-full break-words">
         {issue.message}
       </p>
       {issue.path && issue.path.length > 0 && (
-        <code className="px-1 py-0.5 bg-muted rounded text-xs block mt-1 opacity-80 overflow-hidden text-ellipsis whitespace-nowrap">
+        <code className="px-1 py-0.5 bg-muted rounded text-xs block mt-1 opacity-80 overflow-hidden text-ellipsis whitespace-nowrap w-full max-w-full">
           {issue.path.join('.')}
         </code>
       )}
       {issue.range?.start?.line !== undefined && (
-        <div className="flex justify-end mt-1">
+        <div className="flex justify-end mt-1 w-full">
           <button
             className="text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
             onClick={(e) => {
