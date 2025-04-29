@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import Script from 'next/script';
+// Remove unused Script import if no other scripts rely on it.
+// import Script from 'next/script'; 
+import { GoogleAnalytics } from '@next/third-parties/google'
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider"
 
@@ -31,30 +33,11 @@ export default function RootLayout({
         </ThemeProvider>
 
         {/* --- Google Analytics --- */}
+        {/* Removed old script implementation */}
+        {/* Conditionally render the new GA component */}
         {process.env.NODE_ENV === 'production' && gaMeasurementId && (
-          <>
-            <Script
-              strategy="afterInteractive"
-              src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}
-            />
-            <Script
-              id="google-analytics"
-              strategy="afterInteractive"
-              dangerouslySetInnerHTML={{
-                __html: `
-                  window.dataLayer = window.dataLayer || [];
-                  function gtag(){dataLayer.push(arguments);}
-                  gtag('js', new Date());
-
-                  gtag('config', '${gaMeasurementId}', {
-                    page_path: window.location.pathname,
-                  });
-                `,
-              }}
-            />
-          </>
+            <GoogleAnalytics gaId={gaMeasurementId} />
         )}
-        {/* --- End Google Analytics --- */}
       </body>
     </html>
   );

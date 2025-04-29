@@ -11,15 +11,16 @@ const validators = [
   { id: "postman", name: "Postman API Validator" },
 ]
 
-export async function validateSpec(content: string, fileName: string): Promise<ValidationResponse> {
+export async function validateSpec(content: string): Promise<ValidationResponse> {
   try {
     // Parse the content to ensure it's valid JSON/YAML
-    let parsedContent
 
     try {
       // Attempt to parse as JSON first
-      parsedContent = JSON.parse(content)
+      JSON.parse(content)
     } catch (e) {
+      // Log the specific error
+      console.error("Failed to parse content as JSON:", e);
       // If JSON parsing fails, it might be YAML
       // In a real app, you'd use a YAML parser here
       return {
