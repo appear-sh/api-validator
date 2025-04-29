@@ -42,6 +42,17 @@ export function UploadArea({
       return
     }
 
+    // --- Client-side size check (optional but good UX) ---
+    // Use megabytes (1000*1000) to align with Vercel's likely limit definition
+    const MAX_FILE_SIZE_BYTES = 4.5 * 1000 * 1000; // 4.5 MB
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      toast.error("File Too Large", {
+        description: "File exceeds the 4.5 MB limit. Please use a smaller file or split your specification using $refs.",
+      });
+      return; // Stop before even trying to upload
+    }
+    // --- End client-side check ---
+
     console.log("Starting file upload and validation...");
     setFileName(file.name)
     setIsUploading(true)
@@ -72,10 +83,25 @@ export function UploadArea({
         body: formData,
       })
 
+      // --- Check for 413 status specifically ---
+      if (response.status === 413) {
+        console.error("Validation failed: Payload Too Large (413)");
+        const errorMessage = "File exceeds the 4.5 MB limit. Please use a smaller file or consider splitting your specification using $refs.";
+        toast.error("File Too Large", {
+          description: errorMessage,
+        });
+        setIsUploading(false);
+        setIsProcessingResults(false);
+        onValidationComplete([], specContent, errorMessage); // Pass the specific error message
+        return; // Stop further processing
+      }
+      // --- End 413 check ---
+
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || `Validation request failed: ${response.statusText}`)
+        // Use data.error if available, otherwise use statusText
+        throw new Error(data.error || `Validation request failed: ${response.statusText} (Status: ${response.status})`)
       }
 
       // Mark that we've received results but are still processing
@@ -219,6 +245,10 @@ export function UploadArea({
             />
           </div>
         </div>
+        {/* Add max file size indicator */}
+        <p className="text-xs text-muted-foreground text-center mt-2">
+          Maximum file size: 4.5 MB
+        </p>
       </CardContent>
     </Card>
   )
