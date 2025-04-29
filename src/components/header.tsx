@@ -21,7 +21,7 @@ export function Header() {
               <Image
                 src="/Appear Logo v3.png"
                 alt="Appear Logo"
-                width={110}
+                width={120}
                 height={30}
                 priority
                 className="group-hover:opacity-90 transition-opacity"
