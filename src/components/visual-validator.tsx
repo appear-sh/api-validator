@@ -269,7 +269,7 @@ const IssueItem = React.memo(({
             ? "border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 hover:border-amber-500/30"
             : "border-zinc-500/20 bg-zinc-500/5 hover:bg-zinc-500/10 hover:border-zinc-500/30",
     )}
-    style={{ width: "100%", maxWidth: "500px", marginLeft: "auto", marginRight: "auto" }}
+    style={{ width: "100%", maxWidth: "540px", marginLeft: "auto", marginRight: "auto" }}
     onClick={() => issue.range?.start?.line !== undefined && scrollToLine(issue.range.start.line + 1)}
   >
     <div className="flex flex-col gap-1 w-full max-w-full">
