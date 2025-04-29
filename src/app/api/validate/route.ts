@@ -6,6 +6,15 @@ import SwaggerParser from '@apidevtools/swagger-parser'; // Import Swagger Parse
 import { validateOpenAPIDocument, LocatedValidationResult, LocatedZodIssue } from '@appear.sh/oas-zod-validator'; // Import BOTH validation functions and necessary types
 import { ZodError } from 'zod'; // Keep Zod types
 
+// Increase the body size limit for this route
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb', // Adjust size as needed
+    },
+  },
+};
+
 // Define the shared result type (consistent with frontend)
 type ValidationResult = {
   source: string;
