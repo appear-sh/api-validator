@@ -22,12 +22,12 @@ export function Header() {
                 src="/Appear Logo v3.png"
                 alt="Appear Logo"
                 width={120}
-                height={30}
+                height={40}
                 priority
                 className="group-hover:opacity-90 transition-opacity"
               />
             </Link>
-            <span className="text-white font-medium text-lg">
+            <span className="text-white font-medium text-lg hidden sm:inline">
               <span className="text-zinc-500">/</span> API Validator
             </span>
           </div>
