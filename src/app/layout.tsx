@@ -1,17 +1,8 @@
 import type { Metadata } from "next";
-// import { Geist, Geist_Mono } from "next/font/google"; // Temporarily commented out
+import Script from 'next/script';
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider"
 
-// const geistSans = Geist({ // Temporarily commented out
-//   variable: "--font-geist-sans",
-//   subsets: ["latin"],
-// });
-
-// const geistMono = Geist_Mono({ // Temporarily commented out
-//   variable: "--font-geist-mono",
-//   subsets: ["latin"],
-// });
 
 export const metadata: Metadata = {
   title: "API Spec Validator | Appear",
@@ -23,10 +14,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+
   return (
     <html lang="en" suppressHydrationWarning={true}>
       <body
-        // className={`${geistSans.variable} ${geistMono.variable} antialiased`} // Temporarily commented out
         className={`antialiased`} // Use a basic class
       >
         <ThemeProvider
@@ -37,6 +29,32 @@ export default function RootLayout({
         >
             {children}
         </ThemeProvider>
+
+        {/* --- Google Analytics --- */}
+        {process.env.NODE_ENV === 'production' && gaMeasurementId && (
+          <>
+            <Script
+              strategy="afterInteractive"
+              src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}
+            />
+            <Script
+              id="google-analytics"
+              strategy="afterInteractive"
+              dangerouslySetInnerHTML={{
+                __html: `
+                  window.dataLayer = window.dataLayer || [];
+                  function gtag(){dataLayer.push(arguments);}
+                  gtag('js', new Date());
+
+                  gtag('config', '${gaMeasurementId}', {
+                    page_path: window.location.pathname,
+                  });
+                `,
+              }}
+            />
+          </>
+        )}
+        {/* --- End Google Analytics --- */}
       </body>
     </html>
   );
