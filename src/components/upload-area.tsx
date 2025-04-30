@@ -148,7 +148,15 @@ export function UploadArea({
 
     // Simple URL validation
     try {
-      new URL(urlValue); // Will throw if invalid URL
+      const url = new URL(urlValue); // Will throw if invalid URL
+      
+      // Ensure URL is using HTTPS protocol
+      if (url.protocol !== 'https:') {
+        toast.error("HTTPS Required", {
+          description: "For security reasons, only HTTPS URLs are supported",
+        })
+        return
+      }
     } catch {
       toast.error("Invalid URL", {
         description: "Please enter a valid URL including the protocol (e.g., https://)",
