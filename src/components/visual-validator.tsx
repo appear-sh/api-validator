@@ -204,7 +204,12 @@ const MemoizedSyntaxHighlighter = React.memo(
         wrapLines={true}
         lineNumberStyle={lineNumberStyle}
         lineProps={(lineNumber: number) => {
-          const style: React.CSSProperties = { display: "block", position: "relative" }
+          const style: React.CSSProperties = { 
+            display: "block", 
+            position: "relative",
+            width: "fit-content",
+            minWidth: "100%"
+          }
           if (lineNumber === highlightedLine) {
             style.backgroundColor = "rgba(161, 161, 170, 0.15)"
             style.borderRadius = "4px"
@@ -223,8 +228,17 @@ const MemoizedSyntaxHighlighter = React.memo(
           paddingBottom: '1rem',
           paddingLeft: '0',
           minWidth: '100%',
+          width: 'auto',
+          overflowX: 'visible'
         }}
-        codeTagProps={{ style: { display: 'block', width: 'fit-content', minWidth: '100%' } }}
+        codeTagProps={{ 
+          style: { 
+            display: 'block', 
+            width: 'fit-content', 
+            minWidth: '100%',
+            overflow: 'visible' 
+          } 
+        }}
       >
         {code}
       </SyntaxHighlighter>
@@ -808,7 +822,7 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
               <CardTitle className="text-lg">API Specification</CardTitle>
             </CardHeader>
             <CardContent className="relative p-0">
-              <ScrollArea className="h-[600px] w-full">
+              <ScrollArea className="h-[600px] w-full" type="hover" scrollHideDelay={300}>
                 <div className="relative flex">
                   {/* Left gutter - for potential future line mapping elements, no background now */}
                   <div className="sticky left-0 w-0 shrink-0 z-10 pt-4">

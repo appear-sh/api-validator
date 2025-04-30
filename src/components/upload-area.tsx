@@ -2,11 +2,13 @@
 
 import type React from "react"
 import { useState, useCallback, useEffect } from "react"
-import { Upload, FileUp, Check, Loader2 } from "lucide-react"
+import { Upload, FileUp, Check, Loader2, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { Input } from "@/components/ui/input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 // Define the expected result structure from the API
 type ValidationResult = {
@@ -33,6 +35,8 @@ export function UploadArea({
   const [isUploading, setIsUploading] = useState(false)
   const [isProcessingResults, setIsProcessingResults] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
+  const [urlValue, setUrlValue] = useState<string>('')
+  const [activeSource, setActiveSource] = useState<'file' | 'url'>('file')
 
   const handleFileUpload = useCallback(async (file: File) => {
     if (!file.name.endsWith(".json") && !file.name.endsWith(".yaml") && !file.name.endsWith(".yml")) {
@@ -134,6 +138,68 @@ export function UploadArea({
     }
   }, [onValidationStart, onValidationComplete])
 
+  const handleUrlValidation = useCallback(async () => {
+    if (!urlValue.trim()) {
+      toast.error("URL Required", {
+        description: "Please enter a valid API specification URL",
+      })
+      return
+    }
+
+    // Simple URL validation
+    try {
+      new URL(urlValue); // Will throw if invalid URL
+    } catch {
+      toast.error("Invalid URL", {
+        description: "Please enter a valid URL including the protocol (e.g., https://)",
+      })
+      return
+    }
+
+    console.log("Starting URL validation...");
+    setFileName(new URL(urlValue).pathname.split('/').pop() || 'spec-from-url')
+    setIsUploading(true)
+    setIsProcessingResults(false)
+    onValidationStart()
+
+    try {
+      const response = await fetch('/api/validate-url', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url: urlValue }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || `Validation request failed: ${response.statusText} (Status: ${response.status})`)
+      }
+
+      // Mark that we've received results but are still processing
+      setIsProcessingResults(true)
+      console.log("API validation complete, processing results...");
+      
+      toast.success("Validation complete!", {
+        description: `Checked across validators.`,
+      })
+      
+      // Pass data to parent which will handle the transition
+      onValidationComplete(data.results || [], data.specContent || '')
+      
+    } catch (fetchError) {
+      console.error("URL validation failed:", fetchError)
+      const errorMessage = fetchError instanceof Error ? fetchError.message : "An unknown error occurred during validation."
+      toast.error("Validation failed", {
+        description: errorMessage,
+      })
+      setIsUploading(false)
+      setIsProcessingResults(false)
+      onValidationComplete([], '', errorMessage)
+    }
+  }, [urlValue, onValidationStart, onValidationComplete])
+
   // Update our local loading states when parent changes
   useEffect(() => {
     // If parent is no longer loading but we still have processing flags active,
@@ -176,79 +242,140 @@ export function UploadArea({
   return (
     <Card className="mb-8 border-border/40 bg-card/30 backdrop-blur-sm">
       <CardContent className="p-4">
-        <div
-          className={cn(
-            "border-2 border-dashed rounded-lg p-4 transition-all duration-200",
-            isDragging ? "border-primary bg-primary/10" : "border-border/50 hover:border-primary/30 hover:bg-card/50",
-            isActive && "cursor-not-allowed opacity-70"
-          )}
-          onDragOver={isActive ? undefined : handleDragOver}
-          onDragLeave={isActive ? undefined : handleDragLeave}
-          onDrop={isActive ? undefined : handleDrop}
-        >
-          <div className="flex items-center justify-center sm:justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-4">
-              <div
-                className={cn(
-                  "rounded-full p-3 transition-all duration-200",
-                  isDragging ? "bg-primary/20" : "bg-primary/10 group-hover:bg-primary/20",
-                )}
-              >
-                {isActive ? (
-                  <Loader2 className="h-6 w-6 text-primary animate-spin" />
-                ) : (
-                  <Upload className="h-6 w-6 text-primary" />
-                )}
-              </div>
-              <div>
-                <h3 className="text-base font-semibold">Upload your OpenAPI 3.x spec</h3>
-                <p className="text-sm text-muted-foreground">
-                  {isUploading ? "Processing..." : isProcessingResults ? "Preparing results..." : "Drag and drop your JSON or YAML file here, or click to browse"}
-                </p>
-                {fileName && (
-                  <div className="flex items-center gap-2 text-sm mt-1">
+        <Tabs defaultValue="file" onValueChange={(value) => setActiveSource(value as 'file' | 'url')} className="mb-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="file">Upload File</TabsTrigger>
+            <TabsTrigger value="url">Fetch from URL</TabsTrigger>
+          </TabsList>
+          <TabsContent value="file">
+            <div
+              className={cn(
+                "border-2 border-dashed rounded-lg p-4 transition-all duration-200",
+                isDragging ? "border-primary bg-primary/10" : "border-border/50 hover:border-primary/30 hover:bg-card/50",
+                isActive && "cursor-not-allowed opacity-70"
+              )}
+              onDragOver={isActive ? undefined : handleDragOver}
+              onDragLeave={isActive ? undefined : handleDragLeave}
+              onDrop={isActive ? undefined : handleDrop}
+            >
+              <div className="flex items-center justify-center sm:justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-4">
+                  <div
+                    className={cn(
+                      "rounded-full p-3 transition-all duration-200",
+                      isDragging ? "bg-primary/20" : "bg-primary/10 group-hover:bg-primary/20",
+                    )}
+                  >
                     {isActive ? (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        <span>{isUploading ? `Validating ${fileName}...` : `Processing ${fileName}...`}</span>
-                      </>
+                      <Loader2 className="h-6 w-6 text-primary animate-spin" />
                     ) : (
-                      <>
-                        <Check className="h-3 w-3 text-green-500" />
-                        <span>Ready: {fileName}</span>
-                      </>
+                      <Upload className="h-6 w-6 text-primary" />
                     )}
                   </div>
-                )}
+                  <div>
+                    <h3 className="text-base font-semibold">Upload your OpenAPI 3.x spec</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {isUploading ? "Processing..." : isProcessingResults ? "Preparing results..." : "Drag and drop your JSON or YAML file here, or click to browse"}
+                    </p>
+                    {fileName && activeSource === 'file' && (
+                      <div className="flex items-center gap-2 text-sm mt-1">
+                        {isActive ? (
+                          <>
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            <span>{isUploading ? `Validating ${fileName}...` : `Processing ${fileName}...`}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="h-3 w-3 text-green-500" />
+                            <span>Ready: {fileName}</span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  onClick={() => !isActive && document.getElementById("file-upload")?.click()}
+                  disabled={isActive}
+                  variant="outline"
+                  className="gap-2 bg-background/50 hover:bg-background/80 hover:text-primary transition-all whitespace-nowrap"
+                >
+                  {isActive ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileUp className="h-4 w-4" />
+                  )}
+                  {isUploading ? "Uploading..." : isProcessingResults ? "Processing..." : "Browse"}
+                </Button>
+                <input
+                  id="file-upload"
+                  type="file"
+                  accept=".json,.yaml,.yml"
+                  className="hidden"
+                  onChange={handleFileChange}
+                  disabled={isActive}
+                />
               </div>
             </div>
-            <Button
-              onClick={() => !isActive && document.getElementById("file-upload")?.click()}
-              disabled={isActive}
-              variant="outline"
-              className="gap-2 bg-background/50 hover:bg-background/80 hover:text-primary transition-all whitespace-nowrap"
-            >
-              {isActive ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <FileUp className="h-4 w-4" />
-              )}
-              {isUploading ? "Uploading..." : isProcessingResults ? "Processing..." : "Browse"}
-            </Button>
-            <input
-              id="file-upload"
-              type="file"
-              accept=".json,.yaml,.yml"
-              className="hidden"
-              onChange={handleFileChange}
-              disabled={isActive}
-            />
-          </div>
-        </div>
-        {/* Add max file size indicator */}
-        <p className="text-xs text-muted-foreground text-center mt-2">
-          Maximum file size: 4.5 MB
-        </p>
+            <div className="flex justify-between text-xs text-muted-foreground mt-2">
+              <p>Refreshing your page will discard the data. We don&apos;t store your spec.</p>
+              <p>Maximum file size: 4.5 MB</p>
+            </div>
+          </TabsContent>
+          <TabsContent value="url">
+            <div className="border-2 border-dashed rounded-lg p-4 transition-all duration-200 border-border/50 hover:border-primary/30 hover:bg-card/50">
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-full p-3 bg-primary/10 group-hover:bg-primary/20">
+                    {isActive ? (
+                      <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                    ) : (
+                      <Globe className="h-6 w-6 text-primary" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold">Fetch from URL</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {isUploading ? "Fetching..." : isProcessingResults ? "Preparing results..." : "Enter the URL of your OpenAPI 3.x specification"}
+                    </p>
+                    {fileName && activeSource === 'url' && isActive && (
+                      <div className="flex items-center gap-2 text-sm mt-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span>{isUploading ? `Fetching specification...` : `Processing specification...`}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="https://example.com/api-spec.json"
+                    value={urlValue}
+                    onChange={(e) => setUrlValue(e.target.value)}
+                    disabled={isActive}
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={handleUrlValidation}
+                    disabled={isActive || !urlValue.trim()}
+                    variant="outline"
+                    className="gap-2 bg-background/50 hover:bg-background/80 hover:text-primary transition-all whitespace-nowrap"
+                  >
+                    {isActive ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Globe className="h-4 w-4" />
+                    )}
+                    {isUploading ? "Fetching..." : isProcessingResults ? "Processing..." : "Fetch & Validate"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground mt-2">
+              <p>Refreshing your page will discard any data. We don&apos;t keep anything.</p>
+              <p>URL must point to a valid JSON or YAML OpenAPI specification</p>
+            </div>
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   )
