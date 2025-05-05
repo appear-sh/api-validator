@@ -522,7 +522,7 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
         isTransitioning && "opacity-0"
       )}>
         <CardContent className="p-6 flex justify-center items-center min-h-[400px]">
-          <LottieLoader />
+          <LottieLoader height={160} width={160} />
         </CardContent>
       </Card>
     )
