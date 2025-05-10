@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { GoogleAnalytics } from '@next/third-parties/google';
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider"
+import { Analytics } from "@vercel/analytics/react"
 
 
 export const metadata: Metadata = {
@@ -40,6 +41,7 @@ export default function RootLayout({
         {/* --- Manual GA Implementation (Temporary Diagnostic) --- */}
         {/* REMOVED manual implementation block */}
         {/* --- End Manual GA Implementation --- */}
+        <Analytics />
       </body>
     </html>
   );
