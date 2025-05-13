@@ -880,7 +880,7 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
             <CardTitle className="text-lg">Issues ({filteredIssues.length})</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <ScrollArea className="h-[600px]">
+            <ScrollArea className="h-[1000px]">
               <div className="p-4 space-y-3">
                 {filteredIssues.length > 0 ? (
                   filteredIssues.map((issue, index) => (
