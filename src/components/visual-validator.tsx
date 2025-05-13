@@ -822,7 +822,7 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
               <CardTitle className="text-lg">API Specification</CardTitle>
             </CardHeader>
             <CardContent className="relative p-0">
-              <ScrollArea className="h-[600px] w-full" type="hover" scrollHideDelay={300}>
+              <ScrollArea className="h-[1000px] w-full" type="hover" scrollHideDelay={300}>
                 <div className="relative flex">
                   {/* Left gutter - for potential future line mapping elements, no background now */}
                   <div className="sticky left-0 w-0 shrink-0 z-10 pt-4">
