@@ -98,7 +98,12 @@ export async function POST(request: Request) {
         spectralParsedContent = {}; // Assign empty object to prevent further errors, though validation won't run properly
     }
 
+    // --- Spectral + Swagger Parser + OAS Zod Validator (run in parallel) ---
+    const validatorTasks: Array<Promise<ValidationResult[]>> = [];
+
     if (Object.keys(spectralParsedContent).length > 0) { // Only run if parsing succeeded
+      // Spectral task
+      validatorTasks.push((async () => {
         try {
           const spectral = new Spectral();
           spectral.setRuleset({
@@ -106,10 +111,9 @@ export async function POST(request: Request) {
             rules: {}
           });
           console.log('Running Spectral validation...');
-          // Use the content parsed specifically for Spectral
           const spectralIssues = await spectral.run(spectralParsedContent);
           console.log(`Spectral found ${spectralIssues.length} issues.`);
-          const spectralMappedResults = spectralIssues.map(issue => ({
+          const results = spectralIssues.map(issue => ({
             source: 'Spectral',
             code: String(issue.code),
             message: issue.message,
@@ -119,116 +123,109 @@ export async function POST(request: Request) {
               start: { line: issue.range.start.line, character: issue.range.start.character },
               end: { line: issue.range.end.line, character: issue.range.end.character },
             }
-          }));
-          allValidationResults = allValidationResults.concat(spectralMappedResults);
-          
-          // Add a success message if there were no issues
+          })) as ValidationResult[];
+
           if (spectralIssues.length === 0) {
-            allValidationResults.push({
+            results.push({
               source: 'Spectral',
               code: 'SPECTRAL_VALIDATION_SUCCESS',
               message: 'No linting issues found. The specification is valid according to Spectral.',
               severity: 'info',
             });
           }
+          return results;
         } catch (spectralError) {
           console.error('Spectral Error:', spectralError);
-          allValidationResults.push({
+          return [{
             source: 'Spectral',
             code: 'SPECTRAL_EXECUTION_ERROR',
             message: spectralError instanceof Error ? spectralError.message : 'Spectral failed to run.',
             severity: 'error',
-          });
+          }];
         }
-    }
+      })());
 
-    // --- Swagger Parser Validation ---
-    // Swagger Parser also needs a parsed object. We can reuse the one parsed for Spectral.
-    if (Object.keys(spectralParsedContent).length > 0) { // Only run if parsing succeeded
+      // Swagger Parser task
+      validatorTasks.push((async () => {
         try {
           console.log('Running Swagger Parser validation...');
-          // Use the content parsed specifically for Spectral
           await SwaggerParser.validate(JSON.parse(JSON.stringify(spectralParsedContent))); // Deep clone needed
           console.log('Swagger Parser validation successful (no structural errors found).');
-          // Add a success message so SwaggerParser always appears in the validators list
-          allValidationResults.push({
+          return [{
             source: 'SwaggerParser',
             code: 'SWAGGER_VALIDATION_SUCCESS',
             message: 'No structural errors found. The specification is valid according to Swagger Parser.',
             severity: 'info',
-          });
+          }];
         } catch (error) {
           const swaggerError = error as SwaggerParserError;
           console.warn('Swagger Parser Validation Error:', swaggerError);
           if (swaggerError && Array.isArray(swaggerError.details)) {
-            const swaggerParserMappedResults = swaggerError.details.map((detail: SwaggerErrorDetail) => ({
+            return swaggerError.details.map((detail: SwaggerErrorDetail) => ({
               source: 'SwaggerParser',
               code: detail.code ?? 'SWAGGER_VALIDATION_ERROR',
               message: detail.message ?? 'Swagger Parser validation failed.',
               severity: 'error' as ValidationResult['severity'],
               path: detail.path ?? undefined,
-              // Swagger Parser errors might not have line/range info easily accessible
             }));
-            allValidationResults = allValidationResults.concat(swaggerParserMappedResults);
-          } else {
-            allValidationResults.push({
-              source: 'SwaggerParser',
-              code: 'SWAGGER_VALIDATION_ERROR',
-              message: swaggerError instanceof Error ? swaggerError.message : 'Swagger Parser validation failed.',
-              severity: 'error',
-            });
           }
+          return [{
+            source: 'SwaggerParser',
+            code: 'SWAGGER_VALIDATION_ERROR',
+            message: swaggerError instanceof Error ? swaggerError.message : 'Swagger Parser validation failed.',
+            severity: 'error',
+          }];
         }
+      })());
     }
 
-    // --- OAS Zod Validator --- (Use validateOpenAPIDocument with raw content)
-    try {
-      console.log('Running OAS Zod Validator with validateOpenAPIDocument...');
-      // Call validateOpenAPIDocument with the raw fileContent string
-      const oasZodResult: LocatedValidationResult = await validateOpenAPIDocument(fileContent);
-      console.log(`OAS Zod Validator valid: ${oasZodResult.valid}`);
-
-      // Check if invalid and if errors exist
-      // Note: LocatedValidationResult wraps errors in a standard ZodError composed of LocatedZodIssue
-      if (!oasZodResult.valid && oasZodResult.errors instanceof ZodError) {
-        // Map OAS Zod Validator issues - issues should now have the range property
-        const oasZodMappedResults = oasZodResult.errors.issues.map((issue: LocatedZodIssue) => ({
-          source: 'OAS Zod Validator',
-          code: issue.code,
-          message: issue.message,
-          severity: 'error' as ValidationResult['severity'],
-          path: issue.path.map(String),
-          // Extract the range property - use 'column' instead of 'character'
-          range: issue.range ? {
-              start: { line: issue.range.start.line, character: issue.range.start.column }, // Use column
-              end: { line: issue.range.end.line, character: issue.range.end.column },       // Use column
-          } : undefined, // Fallback just in case range is missing
-        }));
-        allValidationResults = allValidationResults.concat(oasZodMappedResults);
-      } else if (!oasZodResult.valid) {
-        allValidationResults.push({
-          source: 'OAS Zod Validator',
-          code: 'ZOD_UNKNOWN_ERROR',
-          message: 'Validation failed with an unexpected error format.',
-          severity: 'error',
-        });
-      } else {
-        // If validation is successful, add a success message
-        allValidationResults.push({
+    // OAS Zod task
+    validatorTasks.push((async () => {
+      try {
+        console.log('Running OAS Zod Validator with validateOpenAPIDocument...');
+        const oasZodResult: LocatedValidationResult = await validateOpenAPIDocument(fileContent);
+        console.log(`OAS Zod Validator valid: ${oasZodResult.valid}`);
+        if (!oasZodResult.valid && oasZodResult.errors instanceof ZodError) {
+          const mapped = oasZodResult.errors.issues.map((issue: LocatedZodIssue) => ({
+            source: 'OAS Zod Validator',
+            code: issue.code,
+            message: issue.message,
+            severity: 'error' as ValidationResult['severity'],
+            path: issue.path.map(String),
+            range: issue.range ? {
+              start: { line: issue.range.start.line, character: issue.range.start.column },
+              end: { line: issue.range.end.line, character: issue.range.end.column },
+            } : undefined,
+          }));
+          return mapped;
+        } else if (!oasZodResult.valid) {
+          return [{
+            source: 'OAS Zod Validator',
+            code: 'ZOD_UNKNOWN_ERROR',
+            message: 'Validation failed with an unexpected error format.',
+            severity: 'error',
+          }];
+        }
+        return [{
           source: 'OAS Zod Validator',
           code: 'ZOD_VALIDATION_SUCCESS',
           message: 'No schema validation issues found. The specification is valid according to OAS Zod Validator.',
           severity: 'info',
-        });
+        }];
+      } catch (oasZodError) {
+        console.error('OAS Zod Validator Execution Error:', oasZodError);
+        return [{
+          source: 'OAS Zod Validator',
+          code: 'ZOD_EXECUTION_ERROR',
+          message: oasZodError instanceof Error ? oasZodError.message : 'OAS Zod Validator failed to run.',
+          severity: 'error',
+        }];
       }
-    } catch (oasZodError) {
-      console.error('OAS Zod Validator Execution Error:', oasZodError);
-      allValidationResults.push({
-        source: 'OAS Zod Validator',
-        code: 'ZOD_EXECUTION_ERROR',
-        message: oasZodError instanceof Error ? oasZodError.message : 'OAS Zod Validator failed to run.',
-        severity: 'error',
-      });
+    })());
+
+    const resultsArrays = await Promise.all(validatorTasks);
+    for (const results of resultsArrays) {
+      allValidationResults = allValidationResults.concat(results);
     }
 
     // Return combined results
