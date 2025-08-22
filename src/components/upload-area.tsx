@@ -114,7 +114,7 @@ export function UploadArea({
       
       // Use sonner toast for success
       toast.success("Validation complete!", {
-        description: `Checked across validators.`,
+        description: `Checked across validators. Please wait while the results are loaded.`,
       })
       
       // Pass data to parent which will handle the transition
@@ -171,30 +171,52 @@ export function UploadArea({
     onValidationStart()
 
     try {
-      const response = await fetch('/api/validate-url', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url: urlValue }),
-      })
+      // Fire validation and spec-text fetches in parallel to keep UI responsive
+      const [validationRes, specTextRes] = await Promise.all([
+        fetch('/api/validate-url', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url: urlValue }),
+        }),
+        fetch('/api/spec-text', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url: urlValue }),
+        }),
+      ])
 
-      const data = await response.json()
+      // Parse results JSON (now much smaller without spec content)
+      const resultsPayload = await validationRes.json()
+      if (!validationRes.ok) {
+        throw new Error(resultsPayload.error || `Validation request failed: ${validationRes.statusText} (Status: ${validationRes.status})`)
+      }
 
-      if (!response.ok) {
-        throw new Error(data.error || `Validation request failed: ${response.statusText} (Status: ${response.status})`)
+      // Read spec text without JSON parsing to avoid heavy work on main thread
+      let specText = ''
+      if (specTextRes.ok) {
+        try {
+          specText = await specTextRes.text()
+        } catch (e) {
+          console.warn('Failed to read spec text:', e)
+        }
+      } else {
+        console.warn('Spec text fetch failed:', specTextRes.status, specTextRes.statusText)
       }
 
       // Mark that we've received results but are still processing
       setIsProcessingResults(true)
-      console.log("API validation complete, processing results...");
+      console.log("API validation complete, processing results...")
       
       toast.success("Validation complete!", {
-        description: `Checked across validators.`,
+        description: `Checked across validators. Please wait while the results are loaded.`,
       })
       
       // Pass data to parent which will handle the transition
-      onValidationComplete(data.results || [], data.specContent || '')
+      onValidationComplete(resultsPayload.results || [], specText)
       
     } catch (fetchError) {
       console.error("URL validation failed:", fetchError)

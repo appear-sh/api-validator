@@ -3,13 +3,16 @@
 import React from "react"
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
+import dynamic from 'next/dynamic'
 import { Search, Download, Copy, Filter } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+// Dynamically import Prism highlighter to avoid heavy blocking on mount
+type PrismComponent = React.ComponentType<{ children: React.ReactNode } & Record<string, unknown>>
+const DynamicPrism = dynamic(() => import('react-syntax-highlighter').then(m => m.Prism as unknown as PrismComponent), { ssr: false })
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -197,7 +200,7 @@ const MemoizedSyntaxHighlighter = React.memo(
     if (!code) return null;
     
     return (
-      <SyntaxHighlighter
+      <DynamicPrism
         language={language}
         style={vscDarkPlus}
         showLineNumbers={true}
@@ -241,7 +244,7 @@ const MemoizedSyntaxHighlighter = React.memo(
         }}
       >
         {code}
-      </SyntaxHighlighter>
+      </DynamicPrism>
     );
   },
   (prevProps, nextProps) => {
@@ -340,6 +343,15 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
 
   // Add a transition state to handle smooth animation between loading and results
   const [isTransitioning, setIsTransitioning] = useState(false);
+  
+  // Gate syntax highlighting for large specs to prevent freezes
+  const HIGHLIGHT_CHAR_THRESHOLD = 400_000; // ~0.4 MB
+  const isLargeSpec = useMemo(() => (specContent?.length || 0) > HIGHLIGHT_CHAR_THRESHOLD, [specContent])
+  const [highlightEnabled, setHighlightEnabled] = useState<boolean>(false)
+  useEffect(() => {
+    // Enable highlighting automatically for small specs; disable for large ones
+    setHighlightEnabled(!isLargeSpec)
+  }, [isLargeSpec])
   
   // Set all validators as enabled by default when results load, using a layout effect
   // which runs synchronously before browser paint to reduce flicker
@@ -831,25 +843,31 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
 
                   {/* Main content area - scrollable */}
                   <div className="flex-grow overflow-x-auto min-w-0" ref={codeRef}>
-                    <MemoizedSyntaxHighlighter
-                      code={specContent || ""}
-                      language="json"
-                      highlightedLine={highlightedLine}
-                      lineNumberStyle={{ 
-                        marginRight: '1.5em', 
-                        minWidth: '2em', 
-                        paddingLeft: '0.5em', 
-                        textAlign: 'left',
-                        opacity: 0.6
-                      }}
-                    />
+                    {highlightEnabled ? (
+                      <MemoizedSyntaxHighlighter
+                        code={specContent || ""}
+                        language="json"
+                        highlightedLine={highlightedLine}
+                        lineNumberStyle={{ 
+                          marginRight: '1.5em', 
+                          minWidth: '2em', 
+                          paddingLeft: '0.5em', 
+                          textAlign: 'left',
+                          opacity: 0.6
+                        }}
+                      />
+                    ) : (
+                      <pre className="text-xs leading-5 p-4 whitespace-pre overflow-x-auto">
+                        {specContent}
+                      </pre>
+                    )}
                   </div>
 
                   {/* Right gutter - fixed width, will stay in place */}
                   <div className="sticky right-0 w-10 shrink-0 z-10 pt-4 border-l border-border/10">
                     <div className="relative h-full">
                       <TooltipProvider>
-                        {!isLoading && filteredIssues
+                        {highlightEnabled && !isLoading && filteredIssues
                           .filter((issue) => issue.range?.start?.line !== undefined)
                           .map((issue, index) => {
                             const lineNumber = issue.range!.start.line + 1;
@@ -871,6 +889,19 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
                   </div>
                 </div>
               </ScrollArea>
+              <div className="px-4 pb-4 flex items-center gap-2 text-xs text-muted-foreground">
+                {isLargeSpec && (
+                  <span className="opacity-80">Large file detected. Syntax highlighting disabled to keep the UI smooth.</span>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto cursor-pointer"
+                  onClick={() => setHighlightEnabled((v) => !v)}
+                >
+                  {highlightEnabled ? 'Disable highlighting' : 'Enable highlighting'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

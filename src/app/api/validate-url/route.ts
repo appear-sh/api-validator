@@ -71,20 +71,6 @@ export async function POST(request: Request) {
     // Get the content type to determine if it's JSON or YAML
     const contentType = response.headers.get('Content-Type') || '';
     const fileContent = await response.text();
-    
-    // Format the content for display - prettify JSON or keep YAML as is
-    let formattedContent = fileContent;
-    try {
-      if (contentType.includes('application/json') || url.endsWith('.json')) {
-        // Parse and then stringify with pretty-printing (2 spaces indentation)
-        const parsedJson = JSON.parse(fileContent);
-        formattedContent = JSON.stringify(parsedJson, null, 2);
-        console.log('Successfully formatted JSON content for display');
-      }
-    } catch (formatError) {
-      console.warn('Failed to format content for display:', formatError);
-      // Continue with original content if formatting fails
-    }
 
     // Initialize results array
     let allValidationResults: ValidationResult[] = [];
@@ -244,10 +230,9 @@ export async function POST(request: Request) {
       allValidationResults = allValidationResults.concat(results);
     }
 
-    // Return combined results along with the spec content
+    // Return combined results only (spec content is fetched separately to avoid large JSON parse on client)
     return NextResponse.json({ 
-      results: allValidationResults,
-      specContent: formattedContent  // Return the formatted content
+      results: allValidationResults
     });
 
   } catch (error) {
