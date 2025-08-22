@@ -1,11 +1,11 @@
 'use client'; // Need this for state and handlers
 
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { UploadArea } from "@/components/upload-area"
 import { VisualValidator } from "@/components/visual-validator"
 import { Toaster } from "@/components/ui/sonner"
 import { Header } from "@/components/header"
-import { calculateApiScore } from '@/lib/calculate-api-score'; // Import the scoring function
+// Scoring moved off main thread via worker
 
 // Re-define the shared result type (or import from a shared types file if preferred)
 type ValidationResult = {
@@ -25,7 +25,7 @@ export default function Home() {
   const [validationError, setValidationError] = useState<string | null>(null);
   
   // Use React 18's useTransition to keep UI responsive during complex updates
-  const [isPending, startTransition] = useTransition();
+  const [isPending] = useTransition();
 
   // Keep score state
   const [apiScore, setApiScore] = useState<number>(0);
@@ -38,41 +38,54 @@ export default function Home() {
     setApiScore(0); // Reset score
   };
 
+  // Lazy init worker once
+  const scoreWorkerRef = useRef<Worker | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!scoreWorkerRef.current) {
+      // Dynamic import with new Worker via URL to ensure bundler handles it
+      const worker = new Worker(new URL('@/workers/score.worker.ts', import.meta.url), { type: 'module' });
+      scoreWorkerRef.current = worker;
+    }
+    return () => {
+      scoreWorkerRef.current?.terminate();
+      scoreWorkerRef.current = null;
+    }
+  }, []);
+
   const handleValidationComplete = (
     results: ValidationResult[],
     content: string,
     error?: string
   ) => {
+    // Apply minimal state first to unblock UI
     setSpecContent(content);
-    
-    startTransition(() => {
-      setValidationResults(results);
-      setValidationError(error || null);
-      
-      let calculatedOverallScore = 0;
-      // Only calculate score if content is available and no major validation error occurred
-      if (content && !error) {
-        try {
-          // Calculate the score using the utility function
-          // Note: calculateApiScore handles internal parsing errors
-          const scoreDetails = calculateApiScore(results, content);
-          calculatedOverallScore = scoreDetails.overallScore;
-          console.log('Dimensional Scores:', scoreDetails.dimensionalScores); // Log dimensions for info
-        } catch (scoreError: unknown) {
-          // Handle potential errors during score calculation itself (though parsing errors handled within)
-          console.error("Error calculating API score:", scoreError);
-          // Optionally, check the type of scoreError before accessing properties
-          const errorMessage = scoreError instanceof Error ? scoreError.message : String(scoreError);
-          setValidationError((prevError) => 
-            prevError ? `${prevError}\nScore calculation failed: ${errorMessage}` : `Score calculation failed: ${errorMessage}`
-          );
-          calculatedOverallScore = 0; // Default to 0 on error
-        }
-      }
-      setApiScore(calculatedOverallScore);
+    setValidationResults(results);
+    setValidationError(error || null);
 
-      setIsLoading(false);
-    });
+    // End loading immediately so animations don't freeze
+    setIsLoading(false);
+
+    // Offload scoring to worker if we have content and no fatal error
+    if (content && !error && scoreWorkerRef.current) {
+      const worker = scoreWorkerRef.current;
+      const onMessage = (evt: MessageEvent) => {
+        const data = evt.data as { type: string; overallScore?: number; error?: string }
+        if (!data || (data.type !== 'score-response' && data.type !== 'score-error')) return;
+        if (data.type === 'score-response' && typeof data.overallScore === 'number') {
+          setApiScore(data.overallScore);
+        } else if (data.type === 'score-error' && data.error) {
+          setValidationError((prev) => prev ? `${prev}\nScore calculation failed: ${data.error}` : `Score calculation failed: ${data.error}`);
+          setApiScore(0);
+        }
+        worker.removeEventListener('message', onMessage);
+      };
+      worker.addEventListener('message', onMessage);
+      worker.postMessage({ type: 'score-request', results, specContent: content });
+    } else {
+      // No content or error: default score
+      setApiScore(0);
+    }
   };
 
   // Combine loading state with transition state
