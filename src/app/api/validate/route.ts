@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { Spectral, RulesetDefinition } from '@stoplight/spectral-core';
+import { Spectral } from '@stoplight/spectral-core';
 import { oas } from '@stoplight/spectral-rulesets'; // Using the OpenAPI ruleset
 import yaml from 'js-yaml';
 import SwaggerParser from '@apidevtools/swagger-parser'; // Import Swagger Parser
@@ -23,6 +23,16 @@ type ValidationResult = {
   severity: 'error' | 'warning' | 'info';
   path?: string[];
   range?: { start: { line: number, character: number }, end: { line: number, character: number } };
+};
+
+// Best-effort detector for OpenAPI version from raw text
+const detectOpenApiVersionFromText = (text: string): string | null => {
+  try {
+    const match = text.match(/\bopenapi\s*:\s*['"]?([0-9]+\.[0-9]+\.[0-9]+)['"]?/i);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
 };
 
 // Helper to map Spectral severity levels
@@ -98,85 +108,113 @@ export async function POST(request: Request) {
         spectralParsedContent = {}; // Assign empty object to prevent further errors, though validation won't run properly
     }
 
-    // --- Spectral + Swagger Parser + OAS Zod Validator (run in parallel) ---
-    const validatorTasks: Array<Promise<ValidationResult[]>> = [];
+  // --- Spectral + Swagger Parser + OAS Zod Validator (run in parallel) ---
+  const validatorTasks: Array<Promise<ValidationResult[]>> = [];
+
+  // Determine OpenAPI version (from parsed object if available; otherwise, from raw text)
+  const parsedForVersion = spectralParsedContent as { openapi?: unknown };
+  const openApiVersion: string | null =
+    typeof parsedForVersion.openapi === 'string'
+      ? (parsedForVersion.openapi as string)
+      : detectOpenApiVersionFromText(fileContent);
+  const isOpenApi31Plus = Boolean(openApiVersion && (openApiVersion.startsWith('3.1') || openApiVersion.startsWith('3.2')));
+  const isOpenApi32 = Boolean(openApiVersion && openApiVersion.startsWith('3.2'));
 
     if (Object.keys(spectralParsedContent).length > 0) { // Only run if parsing succeeded
-      // Spectral task
-      validatorTasks.push((async () => {
-        try {
-          const spectral = new Spectral();
-          spectral.setRuleset({
-            extends: [[oas as RulesetDefinition, 'recommended']],
-            rules: {}
-          });
-          console.log('Running Spectral validation...');
-          const spectralIssues = await spectral.run(spectralParsedContent);
-          console.log(`Spectral found ${spectralIssues.length} issues.`);
-          const results = spectralIssues.map(issue => ({
-            source: 'Spectral',
-            code: String(issue.code),
-            message: issue.message,
-            severity: mapSeverity(issue.severity),
-            path: issue.path as string[],
-            range: {
-              start: { line: issue.range.start.line, character: issue.range.start.character },
-              end: { line: issue.range.end.line, character: issue.range.end.character },
-            }
-          })) as ValidationResult[];
-
-          if (spectralIssues.length === 0) {
-            results.push({
+      // Spectral task (skip entirely for 3.2 until upstream supports it)
+      if (isOpenApi32) {
+        validatorTasks.push(Promise.resolve([{ 
+          source: 'Spectral', 
+          code: 'SPECTRAL_SKIPPED_UNSUPPORTED_VERSION', 
+          message: 'Spectral skipped: OpenAPI 3.2 not yet supported by the default ruleset.', 
+          severity: 'info' as ValidationResult['severity'],
+        }]));
+      } else {
+        validatorTasks.push((async () => {
+          try {
+            const spectral = new Spectral();
+            const rs = {
+              extends: [[oas, 'recommended']],
+              ...(isOpenApi31Plus ? { rules: { 'oas3-schema': 'off' } } : {}),
+            };
+            spectral.setRuleset(rs as Parameters<typeof spectral.setRuleset>[0]);
+            console.log('Running Spectral validation...');
+            const spectralIssues = await spectral.run(spectralParsedContent);
+            console.log(`Spectral found ${spectralIssues.length} issues.`);
+            const results = spectralIssues.map(issue => ({
               source: 'Spectral',
-              code: 'SPECTRAL_VALIDATION_SUCCESS',
-              message: 'No linting issues found. The specification is valid according to Spectral.',
-              severity: 'info',
-            });
-          }
-          return results;
-        } catch (spectralError) {
-          console.error('Spectral Error:', spectralError);
-          return [{
-            source: 'Spectral',
-            code: 'SPECTRAL_EXECUTION_ERROR',
-            message: spectralError instanceof Error ? spectralError.message : 'Spectral failed to run.',
-            severity: 'error',
-          }];
-        }
-      })());
+              code: String(issue.code),
+              message: issue.message,
+              severity: mapSeverity(issue.severity),
+              path: issue.path as string[],
+              range: {
+                start: { line: issue.range.start.line, character: issue.range.start.character },
+                end: { line: issue.range.end.line, character: issue.range.end.character },
+              }
+            })) as ValidationResult[];
 
-      // Swagger Parser task
-      validatorTasks.push((async () => {
-        try {
-          console.log('Running Swagger Parser validation...');
-          await SwaggerParser.validate(JSON.parse(JSON.stringify(spectralParsedContent))); // Deep clone needed
-          console.log('Swagger Parser validation successful (no structural errors found).');
-          return [{
-            source: 'SwaggerParser',
-            code: 'SWAGGER_VALIDATION_SUCCESS',
-            message: 'No structural errors found. The specification is valid according to Swagger Parser.',
-            severity: 'info',
-          }];
-        } catch (error) {
-          const swaggerError = error as SwaggerParserError;
-          console.warn('Swagger Parser Validation Error:', swaggerError);
-          if (swaggerError && Array.isArray(swaggerError.details)) {
-            return swaggerError.details.map((detail: SwaggerErrorDetail) => ({
-              source: 'SwaggerParser',
-              code: detail.code ?? 'SWAGGER_VALIDATION_ERROR',
-              message: detail.message ?? 'Swagger Parser validation failed.',
-              severity: 'error' as ValidationResult['severity'],
-              path: detail.path ?? undefined,
-            }));
+            if (spectralIssues.length === 0) {
+              results.push({
+                source: 'Spectral',
+                code: 'SPECTRAL_VALIDATION_SUCCESS',
+                message: 'No linting issues found. The specification is valid according to Spectral.',
+                severity: 'info',
+              });
+            }
+            return results;
+          } catch (spectralError) {
+            console.error('Spectral Error:', spectralError);
+            return [{
+              source: 'Spectral',
+              code: 'SPECTRAL_EXECUTION_ERROR',
+              message: spectralError instanceof Error ? spectralError.message : 'Spectral failed to run.',
+              severity: 'error',
+            }];
           }
-          return [{
-            source: 'SwaggerParser',
-            code: 'SWAGGER_VALIDATION_ERROR',
-            message: swaggerError instanceof Error ? swaggerError.message : 'Swagger Parser validation failed.',
-            severity: 'error',
-          }];
-        }
-      })());
+        })());
+      }
+
+      // Swagger Parser task (skip for OpenAPI 3.2 which is not supported by swagger-parser yet)
+      if (isOpenApi32) {
+        validatorTasks.push(Promise.resolve([{ 
+          source: 'SwaggerParser', 
+          code: 'SWAGGER_SKIPPED_UNSUPPORTED_VERSION', 
+          message: 'Swagger Parser skipped: OpenAPI 3.2 is not supported by swagger-parser.', 
+          severity: 'info' as ValidationResult['severity'],
+        }]));
+      } else {
+        validatorTasks.push((async () => {
+          try {
+            console.log('Running Swagger Parser validation...');
+            await SwaggerParser.validate(JSON.parse(JSON.stringify(spectralParsedContent))); // Deep clone needed
+            console.log('Swagger Parser validation successful (no structural errors found).');
+            return [{
+              source: 'SwaggerParser',
+              code: 'SWAGGER_VALIDATION_SUCCESS',
+              message: 'No structural errors found. The specification is valid according to Swagger Parser.',
+              severity: 'info',
+            }];
+          } catch (error) {
+            const swaggerError = error as SwaggerParserError;
+            console.warn('Swagger Parser Validation Error:', swaggerError);
+            if (swaggerError && Array.isArray(swaggerError.details)) {
+              return swaggerError.details.map((detail: SwaggerErrorDetail) => ({
+                source: 'SwaggerParser',
+                code: detail.code ?? 'SWAGGER_VALIDATION_ERROR',
+                message: detail.message ?? 'Swagger Parser validation failed.',
+                severity: 'error' as ValidationResult['severity'],
+                path: detail.path ?? undefined,
+              }));
+            }
+            return [{
+              source: 'SwaggerParser',
+              code: 'SWAGGER_VALIDATION_ERROR',
+              message: swaggerError instanceof Error ? swaggerError.message : 'Swagger Parser validation failed.',
+              severity: 'error',
+            }];
+          }
+        })());
+      }
     }
 
     // OAS Zod task
