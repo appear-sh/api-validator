@@ -1,7 +1,6 @@
 "use client"
 
 import React from "react"
-
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import dynamic from 'next/dynamic'
 import { Search, Download, Copy, Filter } from "lucide-react"
@@ -10,9 +9,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
-// Dynamically import Prism highlighter to avoid heavy blocking on mount
-type PrismComponent = React.ComponentType<{ children: React.ReactNode } & Record<string, unknown>>
-const DynamicPrism = dynamic(() => import('react-syntax-highlighter').then(m => m.Prism as unknown as PrismComponent), { ssr: false })
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -20,16 +16,11 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { LottieLoader } from "@/components/ui/lottie-loader"
 import { toast } from "sonner"
 import { ScoreDisplay } from "@/components/score-display"
+import type { ValidationResult } from '@/lib/types';
 
-// Define the shared result type (matching page.tsx and backend)
-type ValidationResult = {
-  source: string;
-  code: string;
-  message: string;
-  severity: 'error' | 'warning' | 'info';
-  path?: string[];
-  range?: { start: { line: number, character: number }, end: { line: number, character: number } };
-};
+// Dynamically import Prism highlighter to avoid heavy blocking on mount
+type PrismComponent = React.ComponentType<{ children: React.ReactNode } & Record<string, unknown>>
+const DynamicPrism = dynamic(() => import('react-syntax-highlighter').then(m => m.Prism as unknown as PrismComponent), { ssr: false })
 
 // Define component props
 interface VisualValidatorProps {
@@ -345,7 +336,8 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
   const [isTransitioning, setIsTransitioning] = useState(false);
   
   // Gate syntax highlighting for large specs to prevent freezes
-  const HIGHLIGHT_CHAR_THRESHOLD = 400_000; // ~0.4 MB
+  // Vercel serverless limit is 4.5MB; allow up to 2MB for reasonable UX
+  const HIGHLIGHT_CHAR_THRESHOLD = 2_000_000; // ~2 MB
   const isLargeSpec = useMemo(() => (specContent?.length || 0) > HIGHLIGHT_CHAR_THRESHOLD, [specContent])
   const [highlightEnabled, setHighlightEnabled] = useState<boolean>(false)
   useEffect(() => {

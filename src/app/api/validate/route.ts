@@ -1,29 +1,13 @@
 import { NextResponse } from 'next/server';
 import { Spectral } from '@stoplight/spectral-core';
-import { oas } from '@stoplight/spectral-rulesets'; // Using the OpenAPI ruleset
+import { oas } from '@stoplight/spectral-rulesets';
 import yaml from 'js-yaml';
-import SwaggerParser from '@apidevtools/swagger-parser'; // Import Swagger Parser
-import { validateOpenAPIDocument, LocatedValidationResult, LocatedZodIssue } from '@appear.sh/oas-zod-validator'; // Import BOTH validation functions and necessary types
-import { ZodError } from 'zod'; // Keep Zod types
+import SwaggerParser from '@apidevtools/swagger-parser';
+import { validateOpenAPIDocument, LocatedValidationResult, LocatedZodIssue } from '@appear.sh/oas-zod-validator';
+import { ZodError } from 'zod';
+import type { ValidationResult } from '@/lib/types';
 
-// Increase the body size limit for this route
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb', // Adjust size as needed
-    },
-  },
-};
-
-// Define the shared result type (consistent with frontend)
-type ValidationResult = {
-  source: string;
-  code: string;
-  message: string;
-  severity: 'error' | 'warning' | 'info';
-  path?: string[];
-  range?: { start: { line: number, character: number }, end: { line: number, character: number } };
-};
+const isDev = process.env.NODE_ENV === 'development';
 
 // Best-effort detector for OpenAPI version from raw text
 const detectOpenApiVersionFromText = (text: string): string | null => {
@@ -73,7 +57,7 @@ export async function POST(request: Request) {
     // let parsedContent: Record<string, unknown>;
     // try { ... } catch (parseError) { ... }
 
-    console.log(`Received file: ${file.name}, Type: ${file.type}, Size: ${file.size} bytes`);
+    if (isDev) console.log(`Received file: ${file.name}, Type: ${file.type}, Size: ${file.size} bytes`);
 
     // Initialize results array
     let allValidationResults: ValidationResult[] = [];
@@ -96,7 +80,7 @@ export async function POST(request: Request) {
             } else { throw new Error('Parsed YAML for Spectral is not an object.'); }
         }
     } catch(parseError) {
-        console.error('Parsing Error for Spectral:', parseError);
+        if (isDev) console.error('Parsing Error for Spectral:', parseError);
         // Add a specific error for Spectral if parsing fails
         allValidationResults.push({
             source: 'Spectral',
@@ -138,9 +122,9 @@ export async function POST(request: Request) {
               ...(isOpenApi31Plus ? { rules: { 'oas3-schema': 'off' } } : {}),
             };
             spectral.setRuleset(rs as Parameters<typeof spectral.setRuleset>[0]);
-            console.log('Running Spectral validation...');
+            if (isDev) console.log('Running Spectral validation...');
             const spectralIssues = await spectral.run(spectralParsedContent);
-            console.log(`Spectral found ${spectralIssues.length} issues.`);
+            if (isDev) console.log(`Spectral found ${spectralIssues.length} issues.`);
             const results = spectralIssues.map(issue => ({
               source: 'Spectral',
               code: String(issue.code),
@@ -163,7 +147,7 @@ export async function POST(request: Request) {
             }
             return results;
           } catch (spectralError) {
-            console.error('Spectral Error:', spectralError);
+            if (isDev) console.error('Spectral Error:', spectralError);
             return [{
               source: 'Spectral',
               code: 'SPECTRAL_EXECUTION_ERROR',
@@ -185,9 +169,10 @@ export async function POST(request: Request) {
       } else {
         validatorTasks.push((async () => {
           try {
-            console.log('Running Swagger Parser validation...');
-            await SwaggerParser.validate(JSON.parse(JSON.stringify(spectralParsedContent))); // Deep clone needed
-            console.log('Swagger Parser validation successful (no structural errors found).');
+            if (isDev) console.log('Running Swagger Parser validation...');
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await SwaggerParser.validate(structuredClone(spectralParsedContent) as any);
+            if (isDev) console.log('Swagger Parser validation successful (no structural errors found).');
             return [{
               source: 'SwaggerParser',
               code: 'SWAGGER_VALIDATION_SUCCESS',
@@ -196,7 +181,7 @@ export async function POST(request: Request) {
             }];
           } catch (error) {
             const swaggerError = error as SwaggerParserError;
-            console.warn('Swagger Parser Validation Error:', swaggerError);
+            if (isDev) console.warn('Swagger Parser Validation Error:', swaggerError);
             if (swaggerError && Array.isArray(swaggerError.details)) {
               return swaggerError.details.map((detail: SwaggerErrorDetail) => ({
                 source: 'SwaggerParser',
@@ -220,9 +205,9 @@ export async function POST(request: Request) {
     // OAS Zod task
     validatorTasks.push((async () => {
       try {
-        console.log('Running OAS Zod Validator with validateOpenAPIDocument...');
+        if (isDev) console.log('Running OAS Zod Validator with validateOpenAPIDocument...');
         const oasZodResult: LocatedValidationResult = await validateOpenAPIDocument(fileContent);
-        console.log(`OAS Zod Validator valid: ${oasZodResult.valid}`);
+        if (isDev) console.log(`OAS Zod Validator valid: ${oasZodResult.valid}`);
         if (!oasZodResult.valid && oasZodResult.errors instanceof ZodError) {
           const mapped = oasZodResult.errors.issues.map((issue: LocatedZodIssue) => ({
             source: 'OAS Zod Validator',
@@ -251,7 +236,7 @@ export async function POST(request: Request) {
           severity: 'info',
         }];
       } catch (oasZodError) {
-        console.error('OAS Zod Validator Execution Error:', oasZodError);
+        if (isDev) console.error('OAS Zod Validator Execution Error:', oasZodError);
         return [{
           source: 'OAS Zod Validator',
           code: 'ZOD_EXECUTION_ERROR',
@@ -270,7 +255,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ results: allValidationResults });
 
   } catch (error) {
-    console.error('Overall Validation Error:', error);
+    if (isDev) console.error('Overall Validation Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return NextResponse.json({ error: `Failed to process file: ${errorMessage}` }, { status: 500 });
   }

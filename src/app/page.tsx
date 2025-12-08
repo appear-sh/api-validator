@@ -1,21 +1,11 @@
-'use client'; // Need this for state and handlers
+'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { UploadArea } from "@/components/upload-area"
 import { VisualValidator } from "@/components/visual-validator"
 import { Toaster } from "@/components/ui/sonner"
 import { Header } from "@/components/header"
-// Scoring moved off main thread via worker
-
-// Re-define the shared result type (or import from a shared types file if preferred)
-type ValidationResult = {
-  source: string;
-  code: string;
-  message: string;
-  severity: 'error' | 'warning' | 'info';
-  path?: string[];
-  range?: { start: { line: number, character: number }, end: { line: number, character: number } };
-};
+import type { ValidationResult } from '@/lib/types';
 
 export default function Home() {
   // State for managing validation results and interaction
