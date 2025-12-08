@@ -9,16 +9,7 @@ import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-
-// Define the expected result structure from the API
-type ValidationResult = {
-  source: string;
-  code: string;
-  message: string;
-  severity: 'error' | 'warning' | 'info';
-  path?: string[];
-  range?: { start: { line: number, character: number }, end: { line: number, character: number } };
-};
+import type { ValidationResult } from '@/lib/types';
 
 interface UploadAreaProps {
   onValidationStart: () => void;

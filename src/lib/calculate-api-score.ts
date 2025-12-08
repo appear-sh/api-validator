@@ -1,14 +1,5 @@
 import * as yaml from 'js-yaml';
-
-// Define the structure for validation results (align with backend/frontend types)
-type ValidationResult = {
-  source: string;
-  code: string;
-  message: string;
-  severity: 'error' | 'warning' | 'info';
-  path?: string[];
-  range?: { start: { line: number, character: number }, end: { line: number, character: number } };
-};
+import type { ValidationResult } from '@/lib/types';
 
 // Minimal interface for the parts of the spec we check
 interface OpenApiSpecSubset {
