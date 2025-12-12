@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { Spectral } from '@stoplight/spectral-core';
+import { Spectral, ISpectralDiagnostic } from '@stoplight/spectral-core';
 import { oas } from '@stoplight/spectral-rulesets';
 import yaml from 'js-yaml';
 import SwaggerParser from '@apidevtools/swagger-parser';
@@ -125,7 +125,7 @@ export async function POST(request: Request) {
             if (isDev) console.log('Running Spectral validation...');
             const spectralIssues = await spectral.run(spectralParsedContent);
             if (isDev) console.log(`Spectral found ${spectralIssues.length} issues.`);
-            const results = spectralIssues.map(issue => ({
+            const results = spectralIssues.map((issue: ISpectralDiagnostic) => ({
               source: 'Spectral',
               code: String(issue.code),
               message: issue.message,
