@@ -3,7 +3,7 @@ import { Spectral, ISpectralDiagnostic } from '@stoplight/spectral-core';
 import { oas } from '@stoplight/spectral-rulesets';
 import yaml from 'js-yaml';
 import SwaggerParser from '@apidevtools/swagger-parser';
-import { validateOpenAPIDocument, LocatedValidationResult, LocatedZodIssue } from '@appear.sh/oas-zod-validator';
+import { validateOpenAPIDocument } from '@appear.sh/oas-zod-validator';
 import { ZodError } from 'zod';
 import type { ValidationResult } from '@/lib/types';
 
@@ -53,9 +53,7 @@ export async function POST(request: Request) {
     }
 
     const fileContent = await file.text();
-    // Remove the manual parsing logic - validateOpenAPIDocument takes the raw string
-    // let parsedContent: Record<string, unknown>;
-    // try { ... } catch (parseError) { ... }
+    // validateOpenAPI takes the raw string (JSON or YAML)
 
     if (isDev) console.log(`Received file: ${file.name}, Type: ${file.type}, Size: ${file.size} bytes`);
 
@@ -206,20 +204,44 @@ export async function POST(request: Request) {
     validatorTasks.push((async () => {
       try {
         if (isDev) console.log('Running OAS Zod Validator with validateOpenAPIDocument...');
-        const oasZodResult: LocatedValidationResult = await validateOpenAPIDocument(fileContent);
+        const oasZodResult = await validateOpenAPIDocument(fileContent);
         if (isDev) console.log(`OAS Zod Validator valid: ${oasZodResult.valid}`);
         if (!oasZodResult.valid && oasZodResult.errors instanceof ZodError) {
-          const mapped = oasZodResult.errors.issues.map((issue: LocatedZodIssue) => ({
-            source: 'OAS Zod Validator',
-            code: issue.code,
-            message: issue.message,
-            severity: 'error' as ValidationResult['severity'],
-            path: issue.path.map(String),
-            range: issue.range ? {
-              start: { line: issue.range.start.line, character: issue.range.start.column },
-              end: { line: issue.range.end.line, character: issue.range.end.column },
-            } : undefined,
-          }));
+          const mapped = oasZodResult.errors.issues.map((issue: unknown) => {
+            // Type assertion for enhanced properties (v1.8.1+)
+            const enhancedIssue = issue as {
+              code: string;
+              message: string;
+              path: (string | number)[];
+              errorCode?: string;
+              suggestion?: string;
+              specLink?: string;
+              category?: string;
+              severity?: 'error' | 'warning';
+              range?: {
+                start: { line: number; column: number };
+                end: { line: number; column: number };
+              };
+            };
+            
+            return {
+              source: 'OAS Zod Validator',
+              code: enhancedIssue.code,
+              message: enhancedIssue.message,
+              // Use enhanced severity if available, otherwise default to 'error'
+              severity: (enhancedIssue.severity || 'error') as ValidationResult['severity'],
+              path: enhancedIssue.path.map(String),
+              range: enhancedIssue.range ? {
+                start: { line: enhancedIssue.range.start.line, character: enhancedIssue.range.start.column },
+                end: { line: enhancedIssue.range.end.line, character: enhancedIssue.range.end.column },
+              } : undefined,
+              // Enhanced properties from v1.8.1+
+              errorCode: enhancedIssue.errorCode,
+              suggestion: enhancedIssue.suggestion,
+              specLink: enhancedIssue.specLink,
+              category: enhancedIssue.category,
+            };
+          });
           return mapped;
         } else if (!oasZodResult.valid) {
           return [{

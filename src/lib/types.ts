@@ -12,6 +12,11 @@ export interface ValidationResult {
     start: { line: number; character: number };
     end: { line: number; character: number };
   };
+  // Enhanced error properties from OAS Zod Validator v1.8.1+
+  errorCode?: string;      // e.g., "ERR_006"
+  suggestion?: string;     // Actionable fix suggestion
+  specLink?: string;        // Link to OpenAPI spec section
+  category?: string;        // e.g., "schema", "format", etc.
 }
 
 // Legacy types below (kept for backward compatibility with unused components)
