@@ -135,7 +135,7 @@ function IssueMarker({
               : "border-zinc-500/50 bg-zinc-900"
       )}>
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span
               className={`text-xs px-1.5 py-0.5 rounded-full ${getValidatorColor(
                 issue.source,
@@ -148,15 +148,26 @@ function IssueMarker({
             >
               {issue.severity}
             </span>
+            {issue.category && (
+              <span className="text-xs px-1.5 py-0.5 bg-zinc-700 rounded text-gray-300">
+                {issue.category}
+              </span>
+            )}
           </div>
           <p className="font-medium text-sm text-gray-100">{issue.message}</p>
+          {issue.suggestion && (
+            <div className="mt-1 p-2 bg-zinc-800/50 rounded border-l-2 border-blue-500/50">
+              <p className="text-xs font-semibold text-blue-300 mb-0.5">Suggestion:</p>
+              <p className="text-xs text-gray-300">{issue.suggestion}</p>
+            </div>
+          )}
           {issue.path && issue.path.length > 0 && (
             <code className="px-1 py-0.5 bg-zinc-800 rounded text-xs block mt-1 text-gray-300 overflow-hidden text-ellipsis whitespace-nowrap">
               {issue.path.join('.')}
             </code>
           )}
-          {issue.range?.start?.line !== undefined && (
-            <div className="flex justify-end mt-1">
+          <div className="flex items-center justify-between gap-2 mt-1 flex-wrap">
+            {issue.range?.start?.line !== undefined && (
               <button
                 className="text-xs text-gray-300 hover:text-primary transition-colors cursor-pointer"
                 onClick={(e) => {
@@ -166,8 +177,19 @@ function IssueMarker({
               >
                 Go to line {issue.range.start.line + 1}
               </button>
-            </div>
-          )}
+            )}
+            {issue.specLink && (
+              <a
+                href={issue.specLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-400 hover:text-blue-300 transition-colors underline ml-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                See spec reference
+              </a>
+            )}
+          </div>
         </div>
       </TooltipContent>
     </Tooltip>
@@ -259,15 +281,17 @@ const IssueItem = React.memo(({
   scrollToLine,
   getValidatorColor,
   getSeverityColor,
+  onCopyIssue,
 }: { 
   issue: ValidationResult,
   scrollToLine: (lineNumber: number) => void,
   getValidatorColor: (source: string) => string,
   getSeverityColor: (severity: string) => string,
+  onCopyIssue: (issue: ValidationResult) => void,
 }) => (
   <div
     className={cn(
-      "p-2 rounded-md cursor-pointer transition-all duration-200 border overflow-hidden w-full max-w-full box-border",
+      "relative p-2 rounded-md cursor-pointer transition-all duration-200 border overflow-hidden w-full max-w-full box-border",
       "hover:shadow-md hover:translate-y-[-2px]",
       issue.code.includes("SUCCESS") 
         ? "border-green-500/20 bg-green-500/5 hover:bg-green-500/10 hover:border-green-500/30" 
@@ -280,7 +304,17 @@ const IssueItem = React.memo(({
     style={{ width: "100%", maxWidth: "540px", marginLeft: "auto", marginRight: "auto" }}
     onClick={() => issue.range?.start?.line !== undefined && scrollToLine(issue.range.start.line + 1)}
   >
-    <div className="flex flex-col gap-1 w-full max-w-full">
+    <button
+      className="absolute top-2 right-2 p-1 rounded hover:bg-background/50 transition-colors z-10"
+      onClick={(e) => {
+        e.stopPropagation();
+        onCopyIssue(issue);
+      }}
+      aria-label="Copy issue details"
+    >
+      <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+    </button>
+    <div className="flex flex-col gap-1 w-full max-w-full pr-6">
       <div className="flex items-center gap-2 flex-wrap w-full max-w-full">
         <span
           className={cn(
@@ -298,17 +332,28 @@ const IssueItem = React.memo(({
         >
           {issue.code.includes("SUCCESS") ? "Success" : issue.severity}
         </span>
+        {issue.category && (
+          <span className="text-xs px-1.5 py-0.5 bg-muted rounded text-gray-300 whitespace-nowrap">
+            {issue.category}
+          </span>
+        )}
       </div>
       <p className="text-xs line-clamp-3 text-gray-300 w-full max-w-full break-words">
         {issue.message}
       </p>
+      {issue.suggestion && (
+        <div className="mt-1 p-2 bg-muted/50 rounded border-l-2 border-blue-500/50">
+          <p className="text-xs font-semibold text-blue-400 mb-0.5">Suggestion:</p>
+          <p className="text-xs text-gray-300 line-clamp-2">{issue.suggestion}</p>
+        </div>
+      )}
       {issue.path && issue.path.length > 0 && (
         <code className="px-1 py-0.5 bg-muted rounded text-xs block mt-1 opacity-80 overflow-hidden text-ellipsis whitespace-nowrap w-full max-w-full">
           {issue.path.join('.')}
         </code>
       )}
-      {issue.range?.start?.line !== undefined && (
-        <div className="flex justify-end mt-1 w-full">
+      <div className="flex items-center justify-between gap-2 mt-1 w-full flex-wrap">
+        {issue.range?.start?.line !== undefined && (
           <button
             className="text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
             onClick={(e) => {
@@ -318,8 +363,19 @@ const IssueItem = React.memo(({
           >
             Go to line {issue.range.start.line + 1}
           </button>
-        </div>
-      )}
+        )}
+        {issue.specLink && (
+          <a
+            href={issue.specLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-blue-400 hover:text-blue-300 transition-colors underline ml-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            See spec reference
+          </a>
+        )}
+      </div>
     </div>
   </div>
 ));
@@ -390,7 +446,10 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
             issue.message.toLowerCase().includes(searchQuery.toLowerCase()) ||
             (issue.path && issue.path.join('.').toLowerCase().includes(searchQuery.toLowerCase())) ||
             issue.source.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            issue.code.toLowerCase().includes(searchQuery.toLowerCase())
+            issue.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (issue.errorCode && issue.errorCode.toLowerCase().includes(searchQuery.toLowerCase())) ||
+            (issue.suggestion && issue.suggestion.toLowerCase().includes(searchQuery.toLowerCase())) ||
+            (issue.category && issue.category.toLowerCase().includes(searchQuery.toLowerCase()))
         )
     );
   }, [results, enabledValidators, selectedSeverities, searchQuery]);
@@ -461,6 +520,23 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
       toast.error("Download failed. See console for details.");
     }
   }, [results, filteredIssues]);
+
+  const handleCopyIssue = useCallback((issue: ValidationResult) => {
+    try {
+      const issueJson = JSON.stringify(issue, null, 2);
+      navigator.clipboard.writeText(issueJson)
+        .then(() => {
+          toast.success("Issue details copied to clipboard");
+        })
+        .catch((err) => {
+          console.error("Copy failed:", err);
+          toast.error("Failed to copy: " + (err.message || "Unknown error"));
+        });
+    } catch (err) {
+      console.error("Copy error:", err);
+      toast.error("Copy failed. See console for details.");
+    }
+  }, []);
 
   const scrollToLine = useCallback((lineNumber: number) => {
     console.log(`Attempting to scroll to line: ${lineNumber}`);
@@ -913,6 +989,7 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
                       scrollToLine={scrollToLine}
                       getValidatorColor={getValidatorColor}
                       getSeverityColor={getSeverityColor}
+                      onCopyIssue={handleCopyIssue}
                     />
                   ))
                 ) : (
