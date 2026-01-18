@@ -41,3 +41,6 @@ next-env.d.ts
 
 # temporary files
 _tmp_*
+
+# test API specs (don't commit)
+dflight-uav-api.json
