@@ -50,3 +50,17 @@ export interface ValidationResponse {
   validatorCount?: number
   error?: string
 }
+
+// Re-export Agent Readiness Score types
+export type { 
+  AgentReadinessScore, 
+  DimensionScore, 
+  Recommendation, 
+  AppearCTA,
+  Grade,
+  ReadinessLevel,
+  Signal,
+} from './agent-readiness-score';
+
+// Re-export scoring configuration for transparency
+export { METHODOLOGY, WEIGHTS } from './agent-readiness-score';

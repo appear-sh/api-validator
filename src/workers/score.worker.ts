@@ -1,6 +1,6 @@
 // Off-main-thread scoring worker
-import { calculateApiScore } from '@/lib/calculate-api-score'
-import type { ValidationResult } from '@/lib/types';
+import { calculateAgentReadinessScore } from '@/lib/agent-readiness-score'
+import type { ValidationResult, AgentReadinessScore } from '@/lib/types';
 
 interface ScoreRequestMessage {
   type: 'score-request'
@@ -10,7 +10,7 @@ interface ScoreRequestMessage {
 
 interface ScoreResponseMessage {
   type: 'score-response'
-  overallScore: number
+  score: AgentReadinessScore
 }
 
 interface ScoreErrorMessage {
@@ -23,8 +23,8 @@ self.onmessage = (event: MessageEvent<ScoreRequestMessage>) => {
   if (!data || data.type !== 'score-request') return
 
   try {
-    const { overallScore } = calculateApiScore(data.results, data.specContent)
-    const resp: ScoreResponseMessage = { type: 'score-response', overallScore }
+    const score = calculateAgentReadinessScore(data.results, data.specContent)
+    const resp: ScoreResponseMessage = { type: 'score-response', score }
     ;(self as unknown as Worker).postMessage(resp)
   } catch (e) {
     const err: ScoreErrorMessage = { type: 'score-error', error: e instanceof Error ? e.message : 'Unknown error' }

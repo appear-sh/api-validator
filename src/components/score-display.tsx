@@ -66,9 +66,9 @@ export function ScoreDisplay({ score }: ScoreDisplayProps) {
       </div>
       <div>
         <p className={cn("font-semibold transition-colors duration-300", currentTextColorClass)}>
-          API Score
+          Readiness Score
         </p>
-        <p className="text-sm text-muted-foreground">Overall quality</p>
+        <p className="text-sm text-muted-foreground">Agent-ready</p>
       </div>
     </div>
   )
