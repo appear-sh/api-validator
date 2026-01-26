@@ -343,7 +343,7 @@ export function calculateAgentReadinessScore(
     aiDiscoverability,
     security,
     errorRecoverability,
-  }, overallScore);
+  });
 
   // Generate Appear CTA based on score and gaps
   const appearCTA = generateAppearCTA(overallScore, recommendations);
@@ -460,6 +460,8 @@ function analyzeFoundationalCompliance(
   _stats: AgentReadinessScore['stats']  // Kept for API consistency, not used in this dimension
 ): DimensionScore {
   const signals: Signal[] = [];
+  // eslint/no-unused-vars in some configs doesn't ignore leading underscores
+  void _stats;
   
   // Count issues by severity
   const errors = results.filter(r => r.severity === 'error' && !r.code.includes('SUCCESS'));
@@ -658,6 +660,7 @@ function analyzeAgentUsability(spec: OpenApiSpec, stats: AgentReadinessScore['st
   let operationsWithId = 0;
   let idempotentOperations = 0;
   let operationsWithPagination = 0;
+  let listOperations = 0;
   let operationsWithErrorResponses = 0;
   let wellNamedOperationIds = 0;
 
@@ -685,6 +688,7 @@ function analyzeAgentUsability(spec: OpenApiSpec, stats: AgentReadinessScore['st
         // Check pagination for list operations
         const isListOperation = method === 'get' && (pathKey.endsWith('s') || pathKey.includes('list') || pathKey.includes('search'));
         if (isListOperation && operation.parameters) {
+          listOperations++;
           const hasPagination = operation.parameters.some(p => 
             PAGINATION_PARAMS.includes(p.name.toLowerCase())
           );
@@ -709,6 +713,9 @@ function analyzeAgentUsability(spec: OpenApiSpec, stats: AgentReadinessScore['st
     ? Math.round((idempotentOperations / stats.operations) * 100) : 0;
   const errorResponseCoverage = stats.operations > 0 
     ? Math.round((operationsWithErrorResponses / stats.operations) * 100) : 0;
+  const paginationCoverage = listOperations > 0
+    ? Math.round((operationsWithPagination / listOperations) * 100)
+    : 100;
 
   // Build signals
   if (operationIdCoverage === 100) {
@@ -726,18 +733,28 @@ function analyzeAgentUsability(spec: OpenApiSpec, stats: AgentReadinessScore['st
   if (idempotencyScore >= 70) {
     signals.push({ type: 'positive', message: `${idempotencyScore}% operations are idempotent or safe` });
   }
+  
+  if (listOperations > 0) {
+    if (paginationCoverage >= 70) {
+      signals.push({ type: 'positive', message: `${paginationCoverage}% list operations support pagination` });
+    } else {
+      signals.push({ type: 'negative', message: 'Many list operations lack pagination parameters' });
+    }
+  }
 
   const score = Math.round(
-    operationIdCoverage * 0.35 +
+    operationIdCoverage * 0.30 +
     operationIdQuality * 0.20 +
-    idempotencyScore * 0.25 +
-    errorResponseCoverage * 0.20
+    idempotencyScore * 0.20 +
+    errorResponseCoverage * 0.20 +
+    paginationCoverage * 0.10
   );
 
   const improvementTips: string[] = [];
   if (operationIdCoverage < 100) improvementTips.push('Add unique operationId to every operation - agents use these as function names');
   if (operationIdQuality < 50) improvementTips.push('Use verb-noun format for operationIds (e.g., getUsers, createOrder, deleteInvoice)');
   if (idempotencyScore < 70) improvementTips.push('Mark non-GET operations as idempotent where safe for agent retry logic');
+  if (listOperations > 0 && paginationCoverage < 70) improvementTips.push('Add standard pagination parameters (e.g., limit, offset, cursor) to list endpoints');
 
   return {
     score,
@@ -750,6 +767,7 @@ function analyzeAgentUsability(spec: OpenApiSpec, stats: AgentReadinessScore['st
       operationIdQuality,
       idempotencyScore,
       errorResponseCoverage,
+      paginationCoverage,
     },
     improvementTips,
     appearCanHelp: true,
@@ -1082,8 +1100,7 @@ function analyzeErrorRecoverability(spec: OpenApiSpec, stats: AgentReadinessScor
 // ============================================================================
 
 function generateRecommendations(
-  dimensions: AgentReadinessScore['dimensions'],
-  overallScore: number
+  dimensions: AgentReadinessScore['dimensions']
 ): Recommendation[] {
   const recommendations: Recommendation[] = [];
 
