@@ -120,3 +120,75 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Animated gradient border for CTA buttons
+ * Static gradient fallback first, then enhanced animation for modern browsers
+ */
+
+.animated-gradient-border {
+  position: relative !important;
+  background-color: transparent !important;
+  border-radius: 0.375rem !important;
+  isolation: isolate;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Static gradient border - works everywhere */
+.animated-gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(
+    135deg,
+    #3b82f6 0%,
+    #a855f7 50%,
+    #3b82f6 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.animated-gradient-border:hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Enhanced animation for browsers with @property support */
+@supports (background: conic-gradient(from 0deg, red, blue)) {
+  @property --border-angle {
+    syntax: "<angle>";
+    initial-value: 0deg;
+    inherits: false;
+  }
+  
+  @keyframes border-rotate {
+    from { --border-angle: 0deg; }
+    to { --border-angle: 360deg; }
+  }
+  
+  .animated-gradient-border::before {
+    background: conic-gradient(
+      from var(--border-angle),
+      rgba(148, 163, 184, 0.25) 0deg,
+      #3b82f6 90deg,
+      #a855f7 180deg,
+      #3b82f6 270deg,
+      rgba(148, 163, 184, 0.25) 360deg
+    );
+    animation: border-rotate 4s linear infinite;
+  }
+  
+  .animated-gradient-border:hover::before {
+    animation-duration: 2s;
+  }
+}

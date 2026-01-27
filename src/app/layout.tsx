@@ -38,9 +38,19 @@ export default function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning={true}>
-      <body
-        className={`antialiased`} // Use a basic class
-      >
+      <body className="antialiased bg-[#010101]">
+        {/* Background gradient - fixed positioned behind all content */}
+        <div 
+          className="fixed inset-0 -z-10 pointer-events-none"
+          style={{
+            backgroundImage: 'url(/gradient-background-2.svg)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'top center',
+            backgroundRepeat: 'no-repeat',
+          }}
+          aria-hidden="true"
+        />
+
         <ThemeProvider
             attribute="class"
             defaultTheme="dark"
@@ -50,15 +60,10 @@ export default function RootLayout({
             {children}
         </ThemeProvider>
 
-        {/* --- Google Analytics --- */}
-        {/* Conditionally render the GA component */}
+        {/* Google Analytics */}
         {process.env.NODE_ENV === 'production' && gaMeasurementId && (
             <GoogleAnalytics gaId={gaMeasurementId} />
         )}
-
-        {/* --- Manual GA Implementation (Temporary Diagnostic) --- */}
-        {/* REMOVED manual implementation block */}
-        {/* --- End Manual GA Implementation --- */}
         <Analytics />
       </body>
     </html>

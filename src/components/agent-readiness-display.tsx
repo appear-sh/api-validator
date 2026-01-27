@@ -26,6 +26,8 @@ import {
 import { toast } from "sonner"
 import type { AgentReadinessScore, DimensionScore, Grade, Signal, ValidationResult } from "@/lib/types"
 import { MethodologyModal } from "@/components/methodology-modal"
+import { UnicornBackground } from "@/components/unicorn-background"
+import Image from "next/image"
 
 interface AgentReadinessDisplayProps {
   score: AgentReadinessScore | null
@@ -33,11 +35,15 @@ interface AgentReadinessDisplayProps {
   validationResults?: ValidationResult[]
 }
 
+// Grade colours aligned with animation backgrounds for visual cohesion:
+// - Green animation (80+): A/B use emerald
+// - Amber animation (60-79): C/D use yellow/amber
+// - Red animation (<60): F uses red
 const GRADE_COLORS: Record<Grade, { bg: string; text: string; hex: string; border: string }> = {
   'A': { bg: 'bg-emerald-500/10', text: 'text-emerald-400', hex: '#34d399', border: 'border-emerald-500/30' },
-  'B': { bg: 'bg-blue-500/10', text: 'text-blue-400', hex: '#60a5fa', border: 'border-blue-500/30' },
+  'B': { bg: 'bg-emerald-500/10', text: 'text-emerald-400', hex: '#34d399', border: 'border-emerald-500/30' }, // Green like A - same animation
   'C': { bg: 'bg-yellow-500/10', text: 'text-yellow-400', hex: '#facc15', border: 'border-yellow-500/30' },
-  'D': { bg: 'bg-orange-500/10', text: 'text-orange-400', hex: '#fb923c', border: 'border-orange-500/30' },
+  'D': { bg: 'bg-amber-500/10', text: 'text-amber-300', hex: '#fcd34d', border: 'border-amber-500/30' },
   'F': { bg: 'bg-red-500/10', text: 'text-red-400', hex: '#f87171', border: 'border-red-500/30' },
 }
 
@@ -252,9 +258,13 @@ const AppearCTACard = memo(function AppearCTACard({ cta }: { cta: AgentReadiness
           {/* Left side - content */}
           <div className="flex-1 space-y-4">
             <div className="flex items-center gap-2.5">
-              <div className="p-1.5 rounded-md bg-muted" aria-hidden="true">
-                <Sparkles className="h-4 w-4 text-muted-foreground" />
-              </div>
+              <Image 
+                src="/appear-logo-vector.svg" 
+                alt="Appear" 
+                width={18} 
+                height={18}
+                className="rounded-sm"
+              />
               <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">
                 Powered by Appear
               </span>
@@ -277,7 +287,12 @@ const AppearCTACard = memo(function AppearCTACard({ cta }: { cta: AgentReadiness
           
           {/* Right side - actions */}
           <div className="flex flex-col gap-2.5 lg:justify-center shrink-0">
-            <Button asChild size="default" className="w-full lg:w-auto">
+            <Button 
+              asChild 
+              variant="ghost"
+              size="default" 
+              className="w-full lg:w-auto text-foreground animated-gradient-border"
+            >
               <a 
                 href={cta.primaryAction.url} 
                 target="_blank" 
@@ -394,8 +409,14 @@ export function AgentReadinessDisplay({ score, isLoading = false, validationResu
   return (
     <div className="space-y-6" role="region" aria-label="Agent Readiness Score Results">
       {/* Overall Score Header */}
-      <Card className={cn("border-2", colors.border)}>
-        <CardContent className="p-6">
+      <Card className={cn("border-2 relative overflow-hidden", colors.border)}>
+        {/* Unicorn Studio background animation */}
+        <UnicornBackground 
+          score={score.overallScore} 
+          grade={score.grade}
+          className="rounded-xl"
+        />
+        <CardContent className="p-6 relative z-10">
           <div className="flex flex-col md:flex-row md:items-center gap-6">
             {/* Score Circle */}
             <div className="w-32 h-32 mx-auto md:mx-0" role="img" aria-label={`Score: ${score.overallScore} out of 100`}>
@@ -480,12 +501,7 @@ export function AgentReadinessDisplay({ score, isLoading = false, validationResu
               return (
                 <Card 
                   key={`rec-${rec.dimension}-${i}`} 
-                  className={cn(
-                    "border",
-                    rec.priority === 'critical' ? 'border-red-500/30 bg-red-500/5' :
-                    rec.priority === 'high' ? 'border-orange-500/30 bg-orange-500/5' :
-                    'border-border/50'
-                  )}
+                  className="border border-border/50"
                   role="listitem"
                 >
                   <CardContent className="p-4">

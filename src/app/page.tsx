@@ -88,7 +88,7 @@ export default function Home() {
   const hasResults = validationResults.length > 0 || specContent || validationError;
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen text-foreground">
       <Header />
       <div className="max-w-[1800px] mx-auto py-8 px-4 w-full">
         <header className="mb-8 text-center max-w-6xl mx-auto">
