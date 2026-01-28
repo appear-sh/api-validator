@@ -7,6 +7,11 @@
  * Based on appear.sh implementation.
  */
 
+// Extend Window interface for UnicornStudio global
+interface WindowWithUnicornStudio extends Window {
+  UnicornStudio?: UnicornStudio;
+}
+
 export interface UnicornScene {
   destroy: () => void
   resize: () => void
@@ -50,8 +55,9 @@ export function loadUnicornStudio(): Promise<UnicornStudio> {
   }
 
   // Check if already loaded (e.g., from a previous page visit)
-  if (typeof window !== "undefined" && (window as any).UnicornStudio) {
-    loadPromise = Promise.resolve((window as any).UnicornStudio as UnicornStudio)
+  const win = window as WindowWithUnicornStudio;
+  if (typeof window !== "undefined" && win.UnicornStudio) {
+    loadPromise = Promise.resolve(win.UnicornStudio)
     return loadPromise
   }
 
@@ -67,8 +73,9 @@ export function loadUnicornStudio(): Promise<UnicornStudio> {
     script.async = true
 
     script.onload = () => {
-      if ((window as any).UnicornStudio) {
-        resolve((window as any).UnicornStudio as UnicornStudio)
+      const loadedWin = window as WindowWithUnicornStudio;
+      if (loadedWin.UnicornStudio) {
+        resolve(loadedWin.UnicornStudio)
       } else {
         reject(new Error("UnicornStudio failed to initialize after script load"))
       }
