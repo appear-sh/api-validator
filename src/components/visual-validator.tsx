@@ -3,7 +3,7 @@
 import React from "react"
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import dynamic from 'next/dynamic'
-import { Search, Download, Copy, Filter, PanelRightClose, PanelRightOpen } from "lucide-react"
+import { Search, Download, Copy, Filter, PanelRightClose, PanelRightOpen, ChevronDown, ChevronRight } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -153,6 +153,131 @@ const IssueItem = React.memo(({
 ));
 IssueItem.displayName = 'IssueItem';
 
+// Grouped issue component for collapsing similar errors
+interface IssueGroup {
+  key: string;
+  source: string;
+  code: string;
+  message: string;
+  severity: string;
+  issues: ValidationResult[];
+}
+
+const IssueGroupItem = React.memo(({ 
+  group,
+  scrollToLine,
+  getValidatorColor,
+  getSeverityColor,
+  onCopyIssue,
+}: { 
+  group: IssueGroup,
+  scrollToLine: (lineNumber: number) => void,
+  getValidatorColor: (source: string) => string,
+  getSeverityColor: (severity: string) => string,
+  onCopyIssue: (issue: ValidationResult) => void,
+}) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const isSuccess = group.code.includes("SUCCESS");
+  
+  // If only one issue in group, render it directly without grouping UI
+  if (group.issues.length === 1) {
+    return (
+      <IssueItem
+        issue={group.issues[0]}
+        scrollToLine={scrollToLine}
+        getValidatorColor={getValidatorColor}
+        getSeverityColor={getSeverityColor}
+        onCopyIssue={onCopyIssue}
+      />
+    );
+  }
+  
+  return (
+    <div className="space-y-2">
+      {/* Group header */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className={cn(
+          "w-full text-left p-3 rounded-lg transition-colors duration-200 border",
+          isSuccess 
+            ? "border-green-500/20 bg-green-500/5 hover:bg-green-500/10 hover:border-green-500/30" 
+            : group.severity === "error"
+              ? "border-red-500/20 bg-red-500/5 hover:bg-red-500/10 hover:border-red-500/30"
+              : group.severity === "warning"
+                ? "border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 hover:border-amber-500/30"
+                : "border-zinc-500/20 bg-zinc-500/5 hover:bg-zinc-500/10 hover:border-zinc-500/30",
+        )}
+      >
+        <div className="flex items-start gap-2">
+          {/* Expand/collapse icon */}
+          <div className="mt-0.5 shrink-0">
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
+          
+          <div className="flex-1 min-w-0">
+            {/* Header badges */}
+            <div className="flex items-center gap-2 flex-wrap mb-2">
+              <span
+                className={cn(
+                  "text-[10px] px-1.5 py-0.5 rounded font-medium text-white",
+                  getValidatorColor(group.source)
+                )}
+              >
+                {group.source}
+              </span>
+              <span
+                className={cn(
+                  "text-xs font-medium capitalize",
+                  isSuccess ? "text-green-400" : getSeverityColor(group.severity)
+                )}
+              >
+                {isSuccess ? "Success" : group.severity}
+              </span>
+              {/* Occurrence count badge */}
+              <span className="text-[10px] px-1.5 py-0.5 bg-primary/20 border border-primary/30 rounded text-primary font-medium">
+                {group.issues.length} occurrences
+              </span>
+            </div>
+            
+            {/* Message */}
+            <p className="text-sm text-foreground/90 leading-relaxed" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+              {group.message}
+            </p>
+            
+            {/* Collapsed hint */}
+            {!isExpanded && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Click to expand and see all {group.issues.length} affected paths
+              </p>
+            )}
+          </div>
+        </div>
+      </button>
+      
+      {/* Expanded issues */}
+      {isExpanded && (
+        <div className="pl-6 space-y-2 animate-in slide-in-from-top-2 duration-200">
+          {group.issues.map((issue, index) => (
+            <IssueItem
+              key={index}
+              issue={issue}
+              scrollToLine={scrollToLine}
+              getValidatorColor={getValidatorColor}
+              getSeverityColor={getSeverityColor}
+              onCopyIssue={onCopyIssue}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+IssueGroupItem.displayName = 'IssueGroupItem';
+
 export function VisualValidator({ isLoading, results, specContent, error, score }: VisualValidatorProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedSeverities, setSelectedSeverities] = useState<string[]>(["error", "warning", "info"])
@@ -217,6 +342,41 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
         )
     );
   }, [results, enabledValidators, selectedSeverities, searchQuery]);
+
+  // Group filtered issues by source + code + message for collapsible display
+  const groupedIssues = useMemo((): IssueGroup[] => {
+    if (!filteredIssues || filteredIssues.length === 0) return [];
+    
+    const groupMap = new Map<string, IssueGroup>();
+    
+    for (const issue of filteredIssues) {
+      // Create group key from source + code + message
+      const key = `${issue.source}|${issue.code}|${issue.message}`;
+      
+      if (groupMap.has(key)) {
+        groupMap.get(key)!.issues.push(issue);
+      } else {
+        groupMap.set(key, {
+          key,
+          source: issue.source,
+          code: issue.code,
+          message: issue.message,
+          severity: issue.severity,
+          issues: [issue],
+        });
+      }
+    }
+    
+    // Convert to array and sort by severity (errors first), then by count (larger groups first)
+    return Array.from(groupMap.values()).sort((a, b) => {
+      // Severity order: error > warning > info
+      const severityOrder: Record<string, number> = { error: 0, warning: 1, info: 2 };
+      const severityDiff = (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3);
+      if (severityDiff !== 0) return severityDiff;
+      // Then by count (descending)
+      return b.issues.length - a.issues.length;
+    });
+  }, [filteredIssues]);
 
   // Convert state change handlers to useCallback to prevent recreation on each render
   const toggleValidator = useCallback((validatorSource: string) => {
@@ -650,7 +810,7 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
                     className="text-sm font-medium text-muted-foreground whitespace-nowrap"
                     style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
                   >
-                    Issues ({filteredIssues.length})
+                    Issues ({filteredIssues.length}{groupedIssues.length !== filteredIssues.length ? ` in ${groupedIssues.length}` : ''})
                   </span>
                 </div>
                 
@@ -677,7 +837,14 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
               <>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg flex items-center justify-between">
-                    <span>Issues ({filteredIssues.length})</span>
+                    <span>
+                      Issues ({filteredIssues.length})
+                      {groupedIssues.length !== filteredIssues.length && (
+                        <span className="text-xs text-muted-foreground font-normal ml-2">
+                          {groupedIssues.length} groups
+                        </span>
+                      )}
+                    </span>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -700,11 +867,11 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
                 <CardContent className="p-0">
                   <ScrollArea className="h-[1000px]">
                     <div className="p-3 space-y-2">
-                      {filteredIssues.length > 0 ? (
-                        filteredIssues.map((issue, index) => (
-                          <IssueItem
-                            key={index}
-                            issue={issue}
+                      {groupedIssues.length > 0 ? (
+                        groupedIssues.map((group) => (
+                          <IssueGroupItem
+                            key={group.key}
+                            group={group}
                             scrollToLine={scrollToLine}
                             getValidatorColor={getValidatorColor}
                             getSeverityColor={getSeverityColor}
