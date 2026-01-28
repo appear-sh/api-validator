@@ -3,7 +3,7 @@
 import React from "react"
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import dynamic from 'next/dynamic'
-import { Search, Download, Copy, Filter } from "lucide-react"
+import { Search, Download, Copy, Filter, PanelRightClose, PanelRightOpen } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -159,6 +159,7 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
   const [enabledValidators, setEnabledValidators] = useState<string[]>([])
   const [highlightedLine, setHighlightedLine] = useState<number | null>(null)
   const [filtersExpanded, setFiltersExpanded] = useState(true) // Open by default on first load
+  const [issuesPanelCollapsed, setIssuesPanelCollapsed] = useState(false)
   const codeRef = useRef<HTMLDivElement>(null)
 
   // Add a transition state to handle smooth animation between loading and results
@@ -586,9 +587,13 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
         </div>
       </div>
 
-      {/* Results grid - two column layout for more space */}
+      {/* Results grid - two column layout with collapsible issues panel */}
       <div className="flex flex-col lg:flex-row gap-4 max-w-7xl mx-auto px-4 overflow-hidden">
-        <div className="relative lg:w-[55%] min-w-0">
+        {/* Code viewer - expands when issues panel is collapsed */}
+        <div className={cn(
+          "relative min-w-0 transition-all duration-300",
+          issuesPanelCollapsed ? "lg:w-[calc(100%-60px)]" : "lg:w-[55%]"
+        )}>
           <Card className="overflow-hidden border-border/40 bg-card/30 backdrop-blur-sm h-full">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center justify-between">
@@ -612,33 +617,112 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
           </Card>
         </div>
 
-        <Card className="lg:w-[45%] min-w-0 border-border/40 bg-card/30 backdrop-blur-sm overflow-hidden">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Issues ({filteredIssues.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[1000px]">
-              <div className="p-3 space-y-2">
-                {filteredIssues.length > 0 ? (
-                  filteredIssues.map((issue, index) => (
-                    <IssueItem
-                      key={index}
-                      issue={issue}
-                      scrollToLine={scrollToLine}
-                      getValidatorColor={getValidatorColor}
-                      getSeverityColor={getSeverityColor}
-                      onCopyIssue={handleCopyIssue}
-                    />
-                  ))
-                ) : (
-                  <div className="flex justify-center items-center h-[300px] text-muted-foreground">
-                    No issues found matching your filters
-                  </div>
-                )}
+        {/* Issues panel - collapsible */}
+        <div className={cn(
+          "min-w-0 transition-all duration-300",
+          issuesPanelCollapsed ? "lg:w-[60px]" : "lg:w-[45%]"
+        )}>
+          <Card className="border-border/40 bg-card/30 backdrop-blur-sm overflow-hidden h-full">
+            {issuesPanelCollapsed ? (
+              /* Collapsed state - thin strip */
+              <div className="h-[1000px] flex flex-col items-center py-4">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setIssuesPanelCollapsed(false)}
+                        className="mb-4 hover:bg-background/50"
+                      >
+                        <PanelRightOpen className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="left">
+                      <p>Expand issues panel</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                
+                {/* Rotated label with count */}
+                <div className="flex-1 flex items-center justify-center">
+                  <span 
+                    className="text-sm font-medium text-muted-foreground whitespace-nowrap"
+                    style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+                  >
+                    Issues ({filteredIssues.length})
+                  </span>
+                </div>
+                
+                {/* Error/warning count indicators */}
+                <div className="flex flex-col gap-2 mt-4">
+                  {results.filter(r => r.severity === 'error').length > 0 && (
+                    <div className="w-6 h-6 rounded-full bg-red-500/20 border border-red-500/30 flex items-center justify-center">
+                      <span className="text-[10px] text-red-400 font-medium">
+                        {results.filter(r => r.severity === 'error').length}
+                      </span>
+                    </div>
+                  )}
+                  {results.filter(r => r.severity === 'warning').length > 0 && (
+                    <div className="w-6 h-6 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+                      <span className="text-[10px] text-amber-400 font-medium">
+                        {results.filter(r => r.severity === 'warning').length}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
+            ) : (
+              /* Expanded state - full issues list */
+              <>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center justify-between">
+                    <span>Issues ({filteredIssues.length})</span>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setIssuesPanelCollapsed(true)}
+                            className="h-8 w-8 hover:bg-background/50"
+                          >
+                            <PanelRightClose className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Collapse issues panel</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <ScrollArea className="h-[1000px]">
+                    <div className="p-3 space-y-2">
+                      {filteredIssues.length > 0 ? (
+                        filteredIssues.map((issue, index) => (
+                          <IssueItem
+                            key={index}
+                            issue={issue}
+                            scrollToLine={scrollToLine}
+                            getValidatorColor={getValidatorColor}
+                            getSeverityColor={getSeverityColor}
+                            onCopyIssue={handleCopyIssue}
+                          />
+                        ))
+                      ) : (
+                        <div className="flex justify-center items-center h-[300px] text-muted-foreground">
+                          No issues found matching your filters
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              </>
+            )}
+          </Card>
+        </div>
       </div>
     </div>
   )
