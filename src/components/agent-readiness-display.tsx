@@ -232,12 +232,9 @@ const DimensionCard = memo(function DimensionCard({
           {/* Appear Help */}
           {dimension.appearCanHelp && dimension.appearHelpText && (
             <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
-              <div className="flex items-start gap-2">
-                <Sparkles className="h-4 w-4 mt-0.5 text-primary shrink-0" aria-hidden="true" />
-                <div>
-                  <p className="text-sm text-primary font-medium">Appear can help</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{dimension.appearHelpText}</p>
-                </div>
+              <div>
+                <p className="text-sm text-primary font-medium">How Appear helps</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{dimension.appearHelpText}</p>
               </div>
             </div>
           )}

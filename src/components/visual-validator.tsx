@@ -73,7 +73,7 @@ const IssueItem = React.memo(({
     {/* Content - use table layout to force width constraint */}
     <div style={{ display: 'table', tableLayout: 'fixed', width: '100%' }}>
       <div style={{ display: 'table-row' }}>
-        <div style={{ display: 'table-cell', paddingRight: '2rem' }}>
+        <div style={{ display: 'table-cell', paddingRight: '1.5rem' }}>
           {/* Header badges */}
           <div className="flex items-center gap-2 flex-wrap mb-2">
             <span
@@ -107,8 +107,7 @@ const IssueItem = React.memo(({
           {/* Path */}
           {issue.path && issue.path.length > 0 && (
             <code 
-              className="block px-1.5 py-1 bg-muted/50 rounded text-xs text-muted-foreground mb-2"
-              style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              className="block px-1.5 py-1 bg-muted/50 rounded text-xs text-muted-foreground mb-2 overflow-hidden text-ellipsis whitespace-nowrap"
             >
               {issue.path.join('.')}
             </code>
@@ -477,10 +476,7 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
               variant="outline"
               size="sm"
               onClick={() => setFiltersExpanded(v => !v)}
-              className={cn(
-                "bg-background/50 hover:bg-background/80 cursor-pointer transition-all gap-2",
-                filtersExpanded && "bg-primary/10 border-primary/30"
-              )}
+              className="gap-2 bg-background/50 hover:bg-background/80 hover:text-primary transition-all"
             >
               <Filter className="h-4 w-4" />
               <span className="hidden sm:inline">Filters</span>

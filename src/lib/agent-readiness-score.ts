@@ -1190,7 +1190,7 @@ function generateAppearCTA(overallScore: number, recommendations: Recommendation
   // Common secondary action - always offer a demo
   const demoAction = {
     label: 'Book a Demo',
-    url: 'https://www.appear.sh/demo?utm_source=validator&utm_campaign=agent-ready',
+    url: 'https://cal.com/appear.sh/demo',
   };
 
   if (overallScore >= 80) {
@@ -1199,7 +1199,7 @@ function generateAppearCTA(overallScore: number, recommendations: Recommendation
       subheadline: 'Your API scores well for AI agents. Appear helps maintain this quality by detecting documentation drift in real-time.',
       primaryAction: {
         label: 'Get Started Free',
-        url: 'https://app.appear.sh/signup?utm_source=validator&utm_campaign=agent-ready-high',
+        url: 'https://app.appear.sh/sign-up?utm_source=validator&utm_campaign=agent-ready-high',
       },
       secondaryAction: demoAction,
       features: [
@@ -1216,7 +1216,7 @@ function generateAppearCTA(overallScore: number, recommendations: Recommendation
       subheadline: `Your API has ${automatableCount} issues that Appear can fix automatically by analysing your real API traffic.`,
       primaryAction: {
         label: 'Get Started Free',
-        url: 'https://app.appear.sh/signup?utm_source=validator&utm_campaign=agent-ready-critical',
+        url: 'https://app.appear.sh/sign-up?utm_source=validator&utm_campaign=agent-ready-critical',
       },
       secondaryAction: demoAction,
       features: [
@@ -1233,7 +1233,7 @@ function generateAppearCTA(overallScore: number, recommendations: Recommendation
     subheadline: `Appear can automatically resolve ${automatableCount} of your improvement opportunities by learning from real API traffic.`,
     primaryAction: {
       label: 'Get Started Free',
-      url: 'https://app.appear.sh/signup?utm_source=validator&utm_campaign=agent-ready',
+      url: 'https://app.appear.sh/sign-up?utm_source=validator&utm_campaign=agent-ready',
     },
     secondaryAction: demoAction,
     features: [

@@ -25,6 +25,7 @@ import {
 } from "lucide-react"
 import { METHODOLOGY } from "@/lib/agent-readiness-score"
 import { cn } from "@/lib/utils"
+import Image from "next/image"
 
 const DIMENSION_ICONS: Record<string, React.ReactNode> = {
   'shield-check': <ShieldCheck className="w-5 h-5" />,
@@ -63,12 +64,16 @@ export function MethodologyModal({ trigger, className }: MethodologyModalProps) 
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[85vh] p-0">
+      <DialogContent className="max-w-3xl max-h-[85vh] p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/50">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Info className="w-5 h-5 text-primary" />
-            </div>
+          <div className="flex items-center gap-3">
+            <Image 
+              src="/appear-logo-square.svg" 
+              alt="Appear" 
+              width={40} 
+              height={40}
+              className="rounded-lg"
+            />
             <div>
               <DialogTitle className="text-xl">{METHODOLOGY.name}</DialogTitle>
               <DialogDescription className="text-sm text-muted-foreground mt-0.5">
@@ -177,10 +182,9 @@ export function MethodologyModal({ trigger, className }: MethodologyModalProps) 
                           </div>
                           <div>
                             <p className="text-xs font-medium text-muted-foreground mb-1.5">Factors assessed</p>
-                            <ul className="space-y-1">
+                            <ul className="space-y-1.5 pl-4">
                               {dim.factors.map((factor, i) => (
-                                <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
-                                  <span className="text-primary mt-1">•</span>
+                                <li key={i} className="text-xs text-muted-foreground list-disc marker:text-primary">
                                   {factor}
                                 </li>
                               ))}

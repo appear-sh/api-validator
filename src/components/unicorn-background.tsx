@@ -195,7 +195,7 @@ export function UnicornBackground({
       id={elementId}
       className={cn(
         "absolute inset-0 overflow-hidden pointer-events-none transition-opacity duration-500",
-        isLoaded ? "opacity-100" : "opacity-0",
+        isLoaded ? "opacity-55" : "opacity-0",
         className
       )}
       style={{ zIndex: 1 }}
