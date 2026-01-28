@@ -134,7 +134,9 @@ export async function POST(request: Request) {
             };
             spectral.setRuleset(rs as Parameters<typeof spectral.setRuleset>[0]);
             if (isDev) console.log('Running Spectral validation...');
-            const spectralIssues = await spectral.run(spectralParsedContent);
+            // IMPORTANT: Pass raw string to Spectral, not parsed object
+            // This enables accurate source map positions for line numbers
+            const spectralIssues = await spectral.run(fileContent);
             if (isDev) console.log(`Spectral found ${spectralIssues.length} issues.`);
             const results = spectralIssues.map(issue => ({
               source: 'Spectral',
