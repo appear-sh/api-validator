@@ -20,25 +20,26 @@ export function ScoreDisplay({ score }: ScoreDisplayProps) {
     return () => clearTimeout(timer)
   }, [score])
 
+  // Aligned with Agent Ready Score thresholds for visual consistency:
+  // - 80+ (Grade A/B): emerald/green
+  // - 60-79 (Grade C/D): yellow/amber  
+  // - <60 (Grade F): red
   const getTextColorClass = (score: number): string => {
-    if (score >= 90) return "text-zinc-400"
-    if (score >= 70) return "text-blue-500"
-    if (score >= 50) return "text-yellow-500"
-    return "text-red-500"
+    if (score >= 80) return "text-emerald-400"
+    if (score >= 60) return "text-yellow-400"
+    return "text-red-400"
   }
 
   const getBorderColorClass = (score: number): string => {
-    if (score >= 90) return "border-zinc-400/50"
-    if (score >= 70) return "border-blue-500/50"
-    if (score >= 50) return "border-yellow-500/50"
-    return "border-red-500/50"
+    if (score >= 80) return "border-emerald-500/30"
+    if (score >= 60) return "border-yellow-500/30"
+    return "border-red-500/30"
   }
   
   const getHexColor = (score: number): string => {
-    if (score >= 90) return "#a1a1aa" // zinc-400
-    if (score >= 70) return "#3b82f6" // blue-500
-    if (score >= 50) return "#eab308" // yellow-500
-    return "#ef4444" // red-500
+    if (score >= 80) return "#34d399" // emerald-400
+    if (score >= 60) return "#facc15" // yellow-400
+    return "#f87171" // red-400
   }
 
   const currentTextColorClass = getTextColorClass(animatedScore);
@@ -66,9 +67,9 @@ export function ScoreDisplay({ score }: ScoreDisplayProps) {
       </div>
       <div>
         <p className={cn("font-semibold transition-colors duration-300", currentTextColorClass)}>
-          API Score
+          Readiness Score
         </p>
-        <p className="text-sm text-muted-foreground">Overall quality</p>
+        <p className="text-sm text-muted-foreground">Agent-ready</p>
       </div>
     </div>
   )

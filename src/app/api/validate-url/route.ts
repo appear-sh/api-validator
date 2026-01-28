@@ -286,9 +286,25 @@ export async function POST(request: Request) {
       allValidationResults = allValidationResults.concat(results);
     }
 
+    // Deduplicate results (same source + code + message + path = duplicate)
+    const seen = new Set<string>();
+    const deduplicatedResults = allValidationResults.filter((result) => {
+      const key = `${result.source}|${result.code}|${result.message}|${JSON.stringify(result.path ?? [])}`;
+      if (seen.has(key)) {
+        if (isDev) console.log(`Deduplicating: ${result.source} - ${result.code} at ${result.path?.join('.')}`);
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+
+    if (isDev && allValidationResults.length !== deduplicatedResults.length) {
+      console.log(`Deduplicated ${allValidationResults.length - deduplicatedResults.length} duplicate results.`);
+    }
+
     // Return combined results only (spec content is fetched separately to avoid large JSON parse on client)
     return NextResponse.json({ 
-      results: allValidationResults
+      results: deduplicatedResults
     });
 
   } catch (error) {

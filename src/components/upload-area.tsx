@@ -344,10 +344,21 @@ export function UploadArea({
             </div>
           </TabsContent>
           <TabsContent value="url">
-            <div className="border-2 border-dashed rounded-lg p-4 transition-all duration-200 border-border/50 hover:border-primary/30 hover:bg-card/50">
-              <div className="flex flex-col gap-4">
+            <div
+              className={cn(
+                "border-2 border-dashed rounded-lg p-4 transition-all duration-200",
+                "border-border/50 hover:border-primary/30 hover:bg-card/50",
+                isActive && "cursor-not-allowed opacity-70"
+              )}
+            >
+              <div className="flex items-center justify-center sm:justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-4">
-                  <div className="rounded-full p-3 bg-primary/10 group-hover:bg-primary/20">
+                  <div
+                    className={cn(
+                      "rounded-full p-3 transition-all duration-200",
+                      "bg-primary/10 group-hover:bg-primary/20",
+                    )}
+                  >
                     {isActive ? (
                       <Loader2 className="h-6 w-6 text-primary animate-spin" />
                     ) : (
@@ -367,28 +378,28 @@ export function UploadArea({
                     )}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="https://example.com/api-spec.json"
-                    value={urlValue}
-                    onChange={(e) => setUrlValue(e.target.value)}
-                    disabled={isActive}
-                    className="flex-1"
-                  />
-                  <Button
-                    onClick={handleUrlValidation}
-                    disabled={isActive || !urlValue.trim()}
-                    variant="outline"
-                    className="gap-2 bg-background/50 hover:bg-background/80 hover:text-primary transition-all whitespace-nowrap"
-                  >
-                    {isActive ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Globe className="h-4 w-4" />
-                    )}
-                    {isUploading ? "Fetching..." : isProcessingResults ? "Processing..." : "Fetch & Validate"}
-                  </Button>
-                </div>
+                <Button
+                  onClick={handleUrlValidation}
+                  disabled={isActive}
+                  variant="outline"
+                  className="gap-2 bg-background/50 hover:bg-background/80 hover:text-primary transition-all whitespace-nowrap"
+                >
+                  {isActive ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Globe className="h-4 w-4" />
+                  )}
+                  {isUploading ? "Fetching..." : isProcessingResults ? "Processing..." : "Fetch & Validate"}
+                </Button>
+              </div>
+              <div className="mt-4">
+                <Input
+                  placeholder="https://example.com/api-spec.json"
+                  value={urlValue}
+                  onChange={(e) => setUrlValue(e.target.value)}
+                  disabled={isActive}
+                  className="w-full"
+                />
               </div>
             </div>
             <div className="flex justify-between text-xs text-muted-foreground mt-2">

@@ -7,8 +7,26 @@ import { Analytics } from "@vercel/analytics/react"
 
 
 export const metadata: Metadata = {
-  title: "API Spec Validator | Appear",
-  description: "Upload your API spec and see validation errors directly mapped to your code.",
+  title: "Agent-Ready Score | Is Your API Ready for AI Agents? | Appear",
+  description: "Measure how ready your OpenAPI specification is for AI agent consumption. Get a comprehensive score across 6 dimensions: compliance, semantic richness, usability, discoverability, security, and error handling.",
+  keywords: ["OpenAPI", "API validation", "AI agent", "agent ready", "API score", "Jentic", "API documentation", "Appear"],
+  authors: [{ name: "Appear", url: "https://www.appear.sh" }],
+  openGraph: {
+    title: "Agent-Ready Score | Is Your API Ready for AI Agents?",
+    description: "Free tool to measure your OpenAPI spec's readiness for AI agents. Based on the Jentic AI Readiness framework.",
+    type: "website",
+    url: "https://validator.appear.sh",
+    siteName: "Appear",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Agent-Ready Score | Appear",
+    description: "Is your API ready for AI agents? Find out with our free OpenAPI validator.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({
@@ -20,9 +38,19 @@ export default function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning={true}>
-      <body
-        className={`antialiased`} // Use a basic class
-      >
+      <body className="antialiased bg-[#010101]">
+        {/* Background gradient - fixed positioned behind all content */}
+        <div 
+          className="fixed inset-0 -z-10 pointer-events-none"
+          style={{
+            backgroundImage: 'url(/gradient-background-2.svg)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'top center',
+            backgroundRepeat: 'no-repeat',
+          }}
+          aria-hidden="true"
+        />
+
         <ThemeProvider
             attribute="class"
             defaultTheme="dark"
@@ -32,15 +60,10 @@ export default function RootLayout({
             {children}
         </ThemeProvider>
 
-        {/* --- Google Analytics --- */}
-        {/* Conditionally render the GA component */}
+        {/* Google Analytics */}
         {process.env.NODE_ENV === 'production' && gaMeasurementId && (
             <GoogleAnalytics gaId={gaMeasurementId} />
         )}
-
-        {/* --- Manual GA Implementation (Temporary Diagnostic) --- */}
-        {/* REMOVED manual implementation block */}
-        {/* --- End Manual GA Implementation --- */}
         <Analytics />
       </body>
     </html>
