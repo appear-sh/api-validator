@@ -43,13 +43,24 @@ export default function RootLayout({
         <div 
           className="fixed inset-0 -z-10 pointer-events-none"
           style={{
-            backgroundImage: 'url(/gradient-background-2.svg)',
-            backgroundSize: 'cover',
-            backgroundPosition: 'top center',
-            backgroundRepeat: 'no-repeat',
+            background: 'linear-gradient(180deg, #0a0a12 0%, #010101 100%)',
           }}
           aria-hidden="true"
-        />
+        >
+          <img 
+            src="/background-svg.svg" 
+            alt="" 
+            style={{
+              width: '100vw',
+              height: 'auto',
+              minHeight: '100vh',
+              objectFit: 'cover',
+              objectPosition: 'top center',
+              transform: 'scale(1.1)',
+              transformOrigin: 'top center',
+            }}
+          />
+        </div>
 
         <ThemeProvider
             attribute="class"
