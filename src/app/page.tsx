@@ -93,11 +93,11 @@ export default function Home() {
       <div className="max-w-[1800px] mx-auto py-8 px-4 w-full">
         <header className="mb-8 text-center max-w-6xl mx-auto">
           <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-zinc-100 to-zinc-50 text-transparent bg-clip-text">
-            Agent-Ready Score
+            Get Your Agent-Ready Score
           </h1>
           <p className="text-md text-muted-foreground max-w-3xl mx-auto">
             Measure how ready your OpenAPI specification is for AI agent consumption. 
-            Get actionable insights to make your API discoverable, usable, and reliable for autonomous systems.
+            Get actionable insights to make your API discoverable, usable, and reliable for autonomous systems. Powered by <a href="https://appear.sh" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary transition-colors">Appear</a>.
           </p>
         </header>
 

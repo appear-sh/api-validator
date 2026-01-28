@@ -28,7 +28,7 @@ export function Header() {
               />
             </Link>
             <span className="text-white font-medium text-lg hidden sm:inline">
-              <span className="text-zinc-500">/</span> API Validator
+              <span className="text-zinc-500">/</span> OpenAPI Agent Readiness Checker
             </span>
           </div>
         </div>
