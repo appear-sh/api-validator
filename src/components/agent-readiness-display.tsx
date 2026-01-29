@@ -58,63 +58,6 @@ const DIMENSION_ICONS: Record<string, React.ReactNode> = {
 }
 
 /**
- * Loading skeleton for score display while calculation is in progress
- */
-function LoadingSkeleton() {
-  return (
-    <div className="space-y-6 animate-pulse" aria-busy="true" aria-label="Loading score">
-      {/* Overall Score Skeleton */}
-      <Card className="border-2 border-muted">
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row md:items-center gap-6">
-            <div className="w-32 h-32 mx-auto md:mx-0 rounded-full bg-muted" />
-            <div className="flex-1 space-y-3">
-              <div className="h-8 bg-muted rounded w-64 mx-auto md:mx-0" />
-              <div className="h-5 bg-muted rounded w-32 mx-auto md:mx-0" />
-              <div className="h-4 bg-muted rounded w-full max-w-md mx-auto md:mx-0" />
-            </div>
-            <div className="grid grid-cols-3 md:grid-cols-1 gap-3">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="text-center md:text-right">
-                  <div className="h-8 bg-muted rounded w-12 mx-auto md:ml-auto md:mr-0" />
-                  <div className="h-3 bg-muted rounded w-16 mt-1 mx-auto md:ml-auto md:mr-0" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Dimension Cards Skeleton */}
-      <div>
-        <div className="h-6 bg-muted rounded w-40 mb-4" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[1, 2, 3, 4, 5, 6].map(i => (
-            <Card key={i} className="border border-muted">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-muted" />
-                    <div>
-                      <div className="h-5 bg-muted rounded w-32 mb-1" />
-                      <div className="h-3 bg-muted rounded w-48" />
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="h-8 bg-muted rounded w-12 ml-auto" />
-                    <div className="h-3 bg-muted rounded w-16 mt-1 ml-auto" />
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/**
  * Signal badge component - memoised to prevent unnecessary re-renders
  */
 const SignalBadge = memo(function SignalBadge({ signal }: { signal: Signal }) {
