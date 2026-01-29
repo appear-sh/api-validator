@@ -47,6 +47,7 @@ export default function RootLayout({
           }}
           aria-hidden="true"
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img 
             src="/background-svg.svg" 
             alt="" 

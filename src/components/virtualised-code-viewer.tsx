@@ -156,7 +156,6 @@ function highlightLine(line: string, errorRanges?: ErrorRange[]): React.ReactNod
   // Build result with both syntax highlighting and error underlines
   // We need to handle overlapping tokens (error ranges can overlap syntax tokens)
   const result: React.ReactNode[] = []
-  let pos = 0
   let keyIdx = 0
   
   // Find all positions where something changes
@@ -182,7 +181,7 @@ function highlightLine(line: string, errorRanges?: ErrorRange[]): React.ReactNod
     const syntaxToken = activeTokens.find(t => !t.isError && t.className)
     const errorToken = activeTokens.find(t => t.isError)
     
-    let className = syntaxToken?.className || ''
+    const className = syntaxToken?.className || ''
     let style: React.CSSProperties | undefined
     
     if (errorToken) {
