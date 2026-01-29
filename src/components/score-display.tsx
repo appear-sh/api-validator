@@ -7,9 +7,10 @@ import { cn } from "@/lib/utils"
 
 interface ScoreDisplayProps {
   score: number
+  onClick?: () => void
 }
 
-export function ScoreDisplay({ score }: ScoreDisplayProps) {
+export function ScoreDisplay({ score, onClick }: ScoreDisplayProps) {
   const [animatedScore, setAnimatedScore] = useState(0)
 
   useEffect(() => {
@@ -47,10 +48,17 @@ export function ScoreDisplay({ score }: ScoreDisplayProps) {
   const currentHexColor = getHexColor(animatedScore);
 
   return (
-    <div className={cn(
-      "flex items-center gap-3 p-3 rounded-lg bg-background/30 backdrop-blur-sm border transition-colors duration-300",
-      currentBorderColorClass
-    )}>
+    <div 
+      className={cn(
+        "flex items-center gap-3 p-3 rounded-lg bg-background/30 backdrop-blur-sm border transition-all duration-300",
+        currentBorderColorClass,
+        onClick && "cursor-pointer hover:bg-background/50 hover:scale-[1.02] active:scale-[0.98]"
+      )}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
+    >
       <div className="w-16 h-16">
         <CircularProgressbar
           value={animatedScore}
@@ -69,7 +77,9 @@ export function ScoreDisplay({ score }: ScoreDisplayProps) {
         <p className={cn("font-semibold transition-colors duration-300", currentTextColorClass)}>
           Readiness Score
         </p>
-        <p className="text-sm text-muted-foreground">Agent-ready</p>
+        <p className="text-sm text-muted-foreground">
+          {onClick ? "Click to view details" : "Agent-ready"}
+        </p>
       </div>
     </div>
   )

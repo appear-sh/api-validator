@@ -464,7 +464,7 @@ function analyzeFoundationalCompliance(
   void _stats;
   
   // Count issues by severity
-  const errors = results.filter(r => r.severity === 'error' && !r.code.includes('SUCCESS'));
+  const errors = results.filter(r => r.severity === 'error' && !r.code?.includes('SUCCESS'));
   const warnings = results.filter(r => r.severity === 'warning');
   
   // Check OpenAPI version
@@ -472,16 +472,16 @@ function analyzeFoundationalCompliance(
   
   // Check for $ref resolution issues
   const refIssues = results.filter(r => 
-    r.message.toLowerCase().includes('ref') || 
-    r.message.toLowerCase().includes('reference') ||
-    r.code.toLowerCase().includes('ref')
+    r.message?.toLowerCase().includes('ref') || 
+    r.message?.toLowerCase().includes('reference') ||
+    r.code?.toLowerCase().includes('ref')
   );
   
   // Check for schema issues
   const schemaIssues = results.filter(r => 
     r.category === 'schema' || 
-    r.message.toLowerCase().includes('schema') ||
-    r.path?.some(p => p.toString().toLowerCase().includes('schema'))
+    r.message?.toLowerCase().includes('schema') ||
+    r.path?.some(p => p?.toString().toLowerCase().includes('schema'))
   );
 
   // Calculate sub-scores using documented penalty multipliers
@@ -690,7 +690,7 @@ function analyzeAgentUsability(spec: OpenApiSpec, stats: AgentReadinessScore['st
         if (isListOperation && operation.parameters) {
           listOperations++;
           const hasPagination = operation.parameters.some(p => 
-            PAGINATION_PARAMS.includes(p.name.toLowerCase())
+            p.name && PAGINATION_PARAMS.includes(p.name.toLowerCase())
           );
           if (hasPagination) operationsWithPagination++;
         }

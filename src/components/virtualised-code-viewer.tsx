@@ -36,6 +36,69 @@ interface LineData {
 }
 
 // ============================================================================
+// PATH TO LINE NUMBER UTILITY
+// Derives line numbers from JSON path when range is not available
+// ============================================================================
+
+function findLineFromPath(content: string, path: string[]): number | null {
+  if (!path || path.length === 0) return null
+  
+  const lines = content.split('\n')
+  
+  // Build search patterns for each path segment
+  // We're looking for the deepest path segment we can find
+  for (let depth = path.length; depth > 0; depth--) {
+    const searchPath = path.slice(0, depth)
+    const lastSegment = searchPath[searchPath.length - 1]
+    
+    // Create search patterns for this segment
+    // JSON style: "key": or "key" :
+    const jsonPattern = new RegExp(`"${escapeRegex(lastSegment)}"\\s*:`)
+    // YAML style: key: (at appropriate indentation)
+    const yamlPattern = new RegExp(`^\\s*${escapeRegex(lastSegment)}\\s*:`, 'm')
+    // Array index: we look for the parent and count
+    const isArrayIndex = /^\d+$/.test(lastSegment)
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      
+      if (isArrayIndex) {
+        // For array indices, look for array markers or parent key
+        if (searchPath.length > 1) {
+          const parentKey = searchPath[searchPath.length - 2]
+          if (line.includes(`"${parentKey}"`) || line.match(new RegExp(`^\\s*${escapeRegex(parentKey)}\\s*:`))) {
+            // Found parent, now count array items
+            const index = parseInt(lastSegment, 10)
+            let arrayItemCount = -1
+            for (let j = i + 1; j < lines.length && arrayItemCount < index; j++) {
+              if (lines[j].trim().startsWith('-') || lines[j].trim().startsWith('{')) {
+                arrayItemCount++
+                if (arrayItemCount === index) {
+                  return j + 1 // 1-indexed
+                }
+              }
+              // Stop if we hit another top-level key
+              if (lines[j].match(/^[a-zA-Z"]/)) break
+            }
+          }
+        }
+      } else {
+        // For regular keys
+        if (jsonPattern.test(line) || yamlPattern.test(line)) {
+          return i + 1 // 1-indexed
+        }
+      }
+    }
+  }
+  
+  return null
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// ============================================================================
 // SYNTAX HIGHLIGHTING (lightweight, no external deps)
 // ============================================================================
 
@@ -50,11 +113,30 @@ const TOKEN_PATTERNS: [RegExp, string][] = [
   [/"[^"]+"\s*(?=:)/g, 'text-sky-400'],
 ]
 
-function highlightLine(line: string): React.ReactNode {
+interface ErrorRange {
+  start: number
+  end: number
+  severity: 'error' | 'warning' | 'info'
+}
+
+function highlightLine(line: string, errorRanges?: ErrorRange[]): React.ReactNode {
   if (!line.trim()) return line
 
   // Simple tokenisation - find all matches and their positions
-  const tokens: { start: number; end: number; className: string }[] = []
+  const tokens: { start: number; end: number; className: string; isError?: boolean; severity?: string }[] = []
+  
+  // Add error ranges first (they take priority for underline styling)
+  if (errorRanges && errorRanges.length > 0) {
+    for (const range of errorRanges) {
+      tokens.push({
+        start: range.start,
+        end: Math.min(range.end, line.length),
+        className: '', // Will be handled separately
+        isError: true,
+        severity: range.severity,
+      })
+    }
+  }
   
   for (const [pattern, className] of TOKEN_PATTERNS) {
     const regex = new RegExp(pattern.source, pattern.flags)
@@ -68,44 +150,67 @@ function highlightLine(line: string): React.ReactNode {
     }
   }
 
-  // Sort by position and remove overlaps (first match wins)
+  // Sort by position
   tokens.sort((a, b) => a.start - b.start)
-  const filtered: typeof tokens = []
-  let lastEnd = 0
-  for (const token of tokens) {
-    if (token.start >= lastEnd) {
-      filtered.push(token)
-      lastEnd = token.end
-    }
-  }
-
-  // Build result
-  if (filtered.length === 0) return line
-
+  
+  // Build result with both syntax highlighting and error underlines
+  // We need to handle overlapping tokens (error ranges can overlap syntax tokens)
   const result: React.ReactNode[] = []
   let pos = 0
+  let keyIdx = 0
   
-  for (let i = 0; i < filtered.length; i++) {
-    const token = filtered[i]
-    // Add text before this token
-    if (pos < token.start) {
-      result.push(line.slice(pos, token.start))
-    }
-    // Add highlighted token
-    result.push(
-      <span key={i} className={token.className}>
-        {line.slice(token.start, token.end)}
-      </span>
-    )
-    pos = token.end
+  // Find all positions where something changes
+  const breakpoints = new Set<number>()
+  breakpoints.add(0)
+  breakpoints.add(line.length)
+  for (const token of tokens) {
+    breakpoints.add(token.start)
+    breakpoints.add(token.end)
   }
+  const sortedBreakpoints = Array.from(breakpoints).sort((a, b) => a - b)
   
-  // Add remaining text
-  if (pos < line.length) {
-    result.push(line.slice(pos))
+  for (let i = 0; i < sortedBreakpoints.length - 1; i++) {
+    const segStart = sortedBreakpoints[i]
+    const segEnd = sortedBreakpoints[i + 1]
+    if (segStart >= segEnd) continue
+    
+    const segment = line.slice(segStart, segEnd)
+    if (!segment) continue
+    
+    // Find which tokens apply to this segment
+    const activeTokens = tokens.filter(t => t.start <= segStart && t.end >= segEnd)
+    const syntaxToken = activeTokens.find(t => !t.isError && t.className)
+    const errorToken = activeTokens.find(t => t.isError)
+    
+    let className = syntaxToken?.className || ''
+    let style: React.CSSProperties | undefined
+    
+    if (errorToken) {
+      // Add wavy underline for errors
+      const underlineColor = errorToken.severity === 'error' 
+        ? 'rgba(239, 68, 68, 0.8)' 
+        : errorToken.severity === 'warning'
+          ? 'rgba(245, 158, 11, 0.8)'
+          : 'rgba(59, 130, 246, 0.6)'
+      style = {
+        textDecoration: 'underline wavy',
+        textDecorationColor: underlineColor,
+        textUnderlineOffset: '2px',
+      }
+    }
+    
+    if (className || style) {
+      result.push(
+        <span key={keyIdx++} className={className} style={style}>
+          {segment}
+        </span>
+      )
+    } else {
+      result.push(segment)
+    }
   }
 
-  return result
+  return result.length > 0 ? result : line
 }
 
 // ============================================================================
@@ -123,6 +228,17 @@ const CodeLine = memo(function CodeLine({ data, style, isHighlighted, onClick }:
   const hasError = data.issues.some(i => i.severity === 'error')
   const hasWarning = data.issues.some(i => i.severity === 'warning')
   const hasInfo = data.issues.some(i => i.severity === 'info')
+  
+  // Build error ranges for character-level highlighting
+  const errorRanges: ErrorRange[] = useMemo(() => {
+    return data.issues
+      .filter(issue => issue.range?.start?.character !== undefined)
+      .map(issue => ({
+        start: issue.range!.start.character,
+        end: issue.range!.end?.character ?? data.content.length,
+        severity: issue.severity,
+      }))
+  }, [data.issues, data.content.length])
 
   return (
     <div
@@ -153,7 +269,7 @@ const CodeLine = memo(function CodeLine({ data, style, isHighlighted, onClick }:
         style={{ width: MARKER_GUTTER_WIDTH }}
       >
         {data.issues.length > 0 ? (
-          <TooltipProvider>
+          <TooltipProvider delayDuration={150}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <div
@@ -166,18 +282,21 @@ const CodeLine = memo(function CodeLine({ data, style, isHighlighted, onClick }:
                   )}
                 />
               </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-sm">
+              <TooltipContent 
+                side="right" 
+                className="max-w-sm bg-zinc-900 border-zinc-700 shadow-xl"
+              >
                 <div className="space-y-2">
                   {data.issues.map((issue, i) => (
                     <div key={i} className="text-xs">
                       <span className={cn(
-                        "font-medium",
+                        "font-semibold uppercase text-[10px]",
                         issue.severity === 'error' ? 'text-red-400' :
                         issue.severity === 'warning' ? 'text-amber-400' : 'text-blue-400'
                       )}>
                         {issue.severity}:
                       </span>{' '}
-                      <span className="text-zinc-300">{issue.message}</span>
+                      <span className="text-zinc-200">{issue.message}</span>
                     </div>
                   ))}
                 </div>
@@ -187,9 +306,9 @@ const CodeLine = memo(function CodeLine({ data, style, isHighlighted, onClick }:
         ) : null}
       </div>
 
-      {/* Code content */}
+      {/* Code content with syntax highlighting and error underlines */}
       <div className="flex-1 whitespace-pre overflow-hidden text-ellipsis pr-4">
-        {highlightLine(data.content)}
+        {highlightLine(data.content, errorRanges.length > 0 ? errorRanges : undefined)}
       </div>
     </div>
   )
@@ -219,6 +338,8 @@ const Minimap = memo(function Minimap({
   const scale = height / Math.max(totalLines, 1)
   const viewportHeight = Math.max((viewportEnd - viewportStart) * scale, 20)
   const viewportTop = viewportStart * scale
+  const isDraggingRef = useRef(false)
+  const minimapRef = useRef<HTMLDivElement>(null)
 
   // Group nearby lines into segments for cleaner rendering
   const segments = useMemo(() => {
@@ -272,23 +393,55 @@ const Minimap = memo(function Minimap({
     return result
   }, [issuesByLine, scale])
 
+  // Calculate line from Y position
+  const getLineFromY = useCallback((clientY: number) => {
+    if (!minimapRef.current) return 1
+    const rect = minimapRef.current.getBoundingClientRect()
+    const clickY = clientY - rect.top
+    return Math.max(1, Math.min(Math.floor(clickY / scale), totalLines))
+  }, [scale, totalLines])
+
+  // Handle click
   const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const clickY = e.clientY - rect.top
-    const clickedLine = Math.floor(clickY / scale)
-    onNavigate(Math.max(1, Math.min(clickedLine, totalLines)))
-  }, [scale, totalLines, onNavigate])
+    if (isDraggingRef.current) return // Ignore if we just finished dragging
+    const line = getLineFromY(e.clientY)
+    onNavigate(line)
+  }, [getLineFromY, onNavigate])
+
+  // Handle drag start
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    isDraggingRef.current = true
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!isDraggingRef.current) return
+      const line = getLineFromY(moveEvent.clientY)
+      onNavigate(line)
+    }
+    
+    const handleMouseUp = () => {
+      // Small delay to prevent click handler from firing
+      setTimeout(() => { isDraggingRef.current = false }, 50)
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+    
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }, [getLineFromY, onNavigate])
 
   return (
     <div 
-      className="relative bg-zinc-900/50 cursor-pointer border-l border-zinc-800/50"
+      ref={minimapRef}
+      className="relative bg-zinc-900/50 cursor-pointer border-l border-zinc-800/50 select-none"
       style={{ width: MINIMAP_WIDTH, height }}
       onClick={handleClick}
+      onMouseDown={handleMouseDown}
       title={`${issuesByLine.size} lines with issues`}
     >
-      {/* Viewport indicator */}
+      {/* Viewport indicator - draggable handle */}
       <div
-        className="absolute bg-zinc-600/30 pointer-events-none"
+        className="absolute bg-zinc-600/40 hover:bg-zinc-500/50 transition-colors cursor-grab active:cursor-grabbing"
         style={{ 
           top: viewportTop, 
           height: viewportHeight,
@@ -306,7 +459,7 @@ const Minimap = memo(function Minimap({
           <div
             key={i}
             className={cn(
-              "absolute rounded-[1px]",
+              "absolute rounded-[1px] pointer-events-none",
               segment.hasError 
                 ? "bg-red-500" 
                 : segment.hasWarning 
@@ -342,21 +495,32 @@ export function VirtualisedCodeViewer({
   const [containerHeight, setContainerHeight] = useState(600)
 
   // Parse lines and build issue map
+  // For issues without range, attempt to derive line from path
   const { lines, issuesByLine } = useMemo(() => {
     const lineStrings = content.split('\n')
     const issueMap = new Map<number, ValidationResult[]>()
     
     for (const issue of issues) {
+      let lineNum: number | null = null
+      
+      // First, try to use the range if available
       if (issue.range?.start?.line !== undefined) {
-        const lineNum = issue.range.start.line + 1 // 1-indexed
+        lineNum = issue.range.start.line + 1 // 1-indexed
+      } 
+      // Fallback: derive line from path
+      else if (issue.path && issue.path.length > 0) {
+        lineNum = findLineFromPath(content, issue.path)
+      }
+      
+      if (lineNum !== null) {
         const existing = issueMap.get(lineNum) || []
         issueMap.set(lineNum, [...existing, issue])
       }
     }
 
-    const lineData: LineData[] = lineStrings.map((content, index) => ({
+    const lineData: LineData[] = lineStrings.map((lineContent, index) => ({
       number: index + 1,
-      content,
+      content: lineContent,
       issues: issueMap.get(index + 1) || [],
     }))
 
@@ -426,10 +590,14 @@ export function VirtualisedCodeViewer({
 
   return (
     <div className={cn("flex h-full bg-zinc-950 rounded-b-lg overflow-hidden", className)}>
-      {/* Main scrollable area */}
+      {/* Main scrollable area - hide native scrollbar, use minimap for scrolling */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-auto"
+        className="flex-1 overflow-auto [&::-webkit-scrollbar]:hidden"
+        style={{
+          scrollbarWidth: 'none', /* Firefox */
+          msOverflowStyle: 'none', /* IE/Edge */
+        }}
         onScroll={handleScroll}
       >
         {/* Spacer for virtual scrolling */}

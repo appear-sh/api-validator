@@ -148,6 +148,7 @@ export default function Home() {
                   specContent={specContent}
                   error={validationError}
                   score={agentReadinessScore?.overallScore ?? 0}
+                  onNavigateToReadiness={() => setActiveTab("readiness")}
                 />
               </TabsContent>
             </Tabs>

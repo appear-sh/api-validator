@@ -30,6 +30,28 @@ const mapSeverity = (spectralSeverity: number): ValidationResult['severity'] => 
   }
 };
 
+// Generate Spectral documentation link from rule code
+// Spectral's OAS ruleset rules are documented at:
+// https://docs.stoplight.io/docs/spectral/4dec24461f3af-open-api-rules
+const getSpectralDocLink = (ruleCode: string): string | undefined => {
+  // Only generate links for standard Spectral OAS rules (oas2-*, oas3-*, operation-*, info-*, etc.)
+  // Custom rules won't have documentation
+  const standardPrefixes = [
+    'oas2-', 'oas3-', 'operation-', 'info-', 'contact-', 'license-', 
+    'path-', 'tag-', 'typed-enum', 'duplicated-', 'no-', 'openapi-tags'
+  ];
+  
+  const isStandardRule = standardPrefixes.some(prefix => ruleCode.startsWith(prefix)) ||
+    ['openapi-tags', 'openapi-tags-alphabetical'].includes(ruleCode);
+  
+  if (isStandardRule) {
+    // The Spectral docs use kebab-case rule names as anchors
+    return `https://docs.stoplight.io/docs/spectral/4dec24461f3af-open-api-rules#${ruleCode}`;
+  }
+  
+  return undefined;
+};
+
 // Define interfaces for Swagger Parser error details
 interface SwaggerErrorDetail {
   code?: string;
@@ -125,17 +147,21 @@ export async function POST(request: Request) {
             // This enables accurate source map positions for line numbers
             const spectralIssues = await spectral.run(fileContent);
             if (isDev) console.log(`Spectral found ${spectralIssues.length} issues.`);
-            const results = spectralIssues.map((issue: ISpectralDiagnostic) => ({
-              source: 'Spectral',
-              code: String(issue.code),
-              message: issue.message,
-              severity: mapSeverity(issue.severity),
-              path: issue.path as string[],
-              range: {
-                start: { line: issue.range.start.line, character: issue.range.start.character },
-                end: { line: issue.range.end.line, character: issue.range.end.character },
-              }
-            })) as ValidationResult[];
+            const results = spectralIssues.map((issue: ISpectralDiagnostic) => {
+              const ruleCode = String(issue.code);
+              return {
+                source: 'Spectral',
+                code: ruleCode,
+                message: issue.message,
+                severity: mapSeverity(issue.severity),
+                path: issue.path as string[],
+                range: {
+                  start: { line: issue.range.start.line, character: issue.range.start.character },
+                  end: { line: issue.range.end.line, character: issue.range.end.character },
+                },
+                specLink: getSpectralDocLink(ruleCode),
+              };
+            }) as ValidationResult[];
 
             if (spectralIssues.length === 0) {
               results.push({
@@ -275,9 +301,24 @@ export async function POST(request: Request) {
       allValidationResults = allValidationResults.concat(results);
     }
 
+    // Sanitise results - ensure all required fields have values
+    // This protects downstream scoring logic from malformed validator output
+    const sanitisedResults = allValidationResults.map((result) => {
+      // Log malformed results in dev mode for debugging
+      if (isDev) {
+        if (!result.code) console.warn(`[Sanitise] Result from ${result.source} missing 'code':`, result);
+        if (!result.message) console.warn(`[Sanitise] Result from ${result.source} missing 'message':`, result);
+      }
+      return {
+        ...result,
+        code: result.code ?? 'UNKNOWN',
+        message: result.message ?? 'No message provided',
+      };
+    });
+
     // Deduplicate results (same source + code + message + path = duplicate)
     const seen = new Set<string>();
-    const deduplicatedResults = allValidationResults.filter((result) => {
+    const deduplicatedResults = sanitisedResults.filter((result) => {
       const key = `${result.source}|${result.code}|${result.message}|${JSON.stringify(result.path ?? [])}`;
       if (seen.has(key)) {
         if (isDev) console.log(`Deduplicating: ${result.source} - ${result.code} at ${result.path?.join('.')}`);
@@ -287,8 +328,8 @@ export async function POST(request: Request) {
       return true;
     });
 
-    if (isDev && allValidationResults.length !== deduplicatedResults.length) {
-      console.log(`Deduplicated ${allValidationResults.length - deduplicatedResults.length} duplicate results.`);
+    if (isDev && sanitisedResults.length !== deduplicatedResults.length) {
+      console.log(`Deduplicated ${sanitisedResults.length - deduplicatedResults.length} duplicate results.`);
     }
 
     // Return combined results

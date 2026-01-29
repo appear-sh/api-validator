@@ -3,7 +3,7 @@
 import React from "react"
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import dynamic from 'next/dynamic'
-import { Search, Download, Copy, Filter, PanelRightClose, PanelRightOpen, ChevronDown, ChevronRight } from "lucide-react"
+import { Search, Download, Copy, Filter, PanelRightClose, PanelRightOpen, ChevronDown, ChevronRight, EyeOff, Eye } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,7 +28,51 @@ interface VisualValidatorProps {
   specContent: string;
   error: string | null;
   score: number;
+  onNavigateToReadiness?: () => void;
 }
+
+// Generate unique key for an issue
+const getIssueKey = (issue: ValidationResult): string => {
+  return `${issue.source}|${issue.code}|${issue.message}|${JSON.stringify(issue.path ?? [])}`;
+};
+
+// Utility to escape regex special characters
+const escapeRegex = (str: string): string => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Find line number from JSON/YAML path when range is not available
+const findLineFromPath = (content: string, path: string[]): number | null => {
+  if (!path || path.length === 0 || !content) return null;
+  
+  const lines = content.split('\n');
+  
+  // Search from the deepest path segment backwards
+  for (let depth = path.length; depth > 0; depth--) {
+    const lastSegment = path[depth - 1];
+    
+    // Create search patterns
+    const jsonPattern = new RegExp(`"${escapeRegex(lastSegment)}"\\s*:`);
+    const yamlPattern = new RegExp(`^\\s*${escapeRegex(lastSegment)}\\s*:`, 'm');
+    
+    for (let i = 0; i < lines.length; i++) {
+      if (jsonPattern.test(lines[i]) || yamlPattern.test(lines[i])) {
+        return i + 1; // 1-indexed
+      }
+    }
+  }
+  
+  return null;
+};
+
+// Get line number for an issue (from range or derived from path)
+const getIssueLine = (issue: ValidationResult, specContent: string): number | null => {
+  if (issue.range?.start?.line !== undefined) {
+    return issue.range.start.line + 1; // Convert 0-indexed to 1-indexed
+  }
+  if (issue.path && issue.path.length > 0) {
+    return findLineFromPath(specContent, issue.path);
+  }
+  return null;
+};
 
 // Issue list item component
 const IssueItem = React.memo(({ 
@@ -37,17 +81,30 @@ const IssueItem = React.memo(({
   getValidatorColor,
   getSeverityColor,
   onCopyIssue,
+  onHide,
+  isHidden,
+  specContent,
 }: { 
   issue: ValidationResult,
   scrollToLine: (lineNumber: number) => void,
   getValidatorColor: (source: string) => string,
   getSeverityColor: (severity: string) => string,
   onCopyIssue: (issue: ValidationResult) => void,
-}) => (
+  onHide?: (key: string) => void,
+  isHidden?: boolean,
+  specContent?: string,
+}) => {
+  // Get line number (from range or derived from path)
+  const lineNumber = specContent ? getIssueLine(issue, specContent) : 
+    (issue.range?.start?.line !== undefined ? issue.range.start.line + 1 : null);
+  const isDerivedLine = lineNumber !== null && issue.range?.start?.line === undefined;
+  
+  return (
   <div
     style={{ maxWidth: '100%', width: '100%' }}
     className={cn(
-      "relative p-3 rounded-lg cursor-pointer transition-colors duration-200 border box-border",
+      "relative p-3 rounded-lg transition-colors duration-200 border box-border",
+      lineNumber !== null && "cursor-pointer",
       issue.code.includes("SUCCESS") 
         ? "border-green-500/20 bg-green-500/5 hover:bg-green-500/10 hover:border-green-500/30" 
         : issue.severity === "error"
@@ -56,19 +113,38 @@ const IssueItem = React.memo(({
             ? "border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 hover:border-amber-500/30"
             : "border-zinc-500/20 bg-zinc-500/5 hover:bg-zinc-500/10 hover:border-zinc-500/30",
     )}
-    onClick={() => issue.range?.start?.line !== undefined && scrollToLine(issue.range.start.line + 1)}
+    onClick={() => lineNumber !== null && scrollToLine(lineNumber)}
   >
-    {/* Copy button */}
-    <button
-      className="absolute top-2 right-2 p-1 rounded hover:bg-background/50 transition-colors z-10"
-      onClick={(e) => {
-        e.stopPropagation();
-        onCopyIssue(issue);
-      }}
-      aria-label="Copy issue details"
-    >
-      <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-    </button>
+    {/* Action buttons */}
+    <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
+      {onHide && (
+        <button
+          className="p-1 rounded hover:bg-background/50 transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            onHide(getIssueKey(issue));
+          }}
+          aria-label={isHidden ? "Unhide issue" : "Hide issue"}
+          title={isHidden ? "Unhide" : "Hide"}
+        >
+          {isHidden ? (
+            <Eye className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+          ) : (
+            <EyeOff className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+          )}
+        </button>
+      )}
+      <button
+        className="p-1 rounded hover:bg-background/50 transition-colors"
+        onClick={(e) => {
+          e.stopPropagation();
+          onCopyIssue(issue);
+        }}
+        aria-label="Copy issue details"
+      >
+        <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+      </button>
+    </div>
     
     {/* Content - use table layout to force width constraint */}
     <div style={{ display: 'table', tableLayout: 'fixed', width: '100%' }}>
@@ -123,15 +199,15 @@ const IssueItem = React.memo(({
           
           {/* Footer actions */}
           <div className="flex items-center gap-2">
-            {issue.range?.start?.line !== undefined && (
+            {lineNumber !== null && (
               <button
                 className="text-xs text-muted-foreground hover:text-primary transition-colors"
                 onClick={(e) => {
                   e.stopPropagation();
-                  scrollToLine(issue.range!.start.line + 1);
+                  scrollToLine(lineNumber);
                 }}
               >
-                Go to line {issue.range.start.line + 1}
+                Go to line {lineNumber}{isDerivedLine && ' (approx)'}
               </button>
             )}
             {issue.specLink && (
@@ -150,7 +226,7 @@ const IssueItem = React.memo(({
       </div>
     </div>
   </div>
-));
+)});
 IssueItem.displayName = 'IssueItem';
 
 // Grouped issue component for collapsing similar errors
@@ -169,12 +245,18 @@ const IssueGroupItem = React.memo(({
   getValidatorColor,
   getSeverityColor,
   onCopyIssue,
+  onHideGroup,
+  isHidden,
+  specContent,
 }: { 
   group: IssueGroup,
   scrollToLine: (lineNumber: number) => void,
   getValidatorColor: (source: string) => string,
   getSeverityColor: (severity: string) => string,
   onCopyIssue: (issue: ValidationResult) => void,
+  onHideGroup?: (groupKey: string) => void,
+  isHidden?: boolean,
+  specContent?: string,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const isSuccess = group.code.includes("SUCCESS");
@@ -188,6 +270,9 @@ const IssueGroupItem = React.memo(({
         getValidatorColor={getValidatorColor}
         getSeverityColor={getSeverityColor}
         onCopyIssue={onCopyIssue}
+        onHide={onHideGroup ? () => onHideGroup(group.key) : undefined}
+        isHidden={isHidden}
+        specContent={specContent}
       />
     );
   }
@@ -195,60 +280,79 @@ const IssueGroupItem = React.memo(({
   return (
     <div className="space-y-2">
       {/* Group header */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className={cn(
-          "w-full text-left p-3 rounded-lg transition-colors duration-200 border",
-          isSuccess 
-            ? "border-green-500/20 bg-green-500/5 hover:bg-green-500/10 hover:border-green-500/30" 
-            : group.severity === "error"
-              ? "border-red-500/20 bg-red-500/5 hover:bg-red-500/10 hover:border-red-500/30"
-              : group.severity === "warning"
-                ? "border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 hover:border-amber-500/30"
-                : "border-zinc-500/20 bg-zinc-500/5 hover:bg-zinc-500/10 hover:border-zinc-500/30",
-        )}
-      >
-        <div className="flex items-start gap-2">
-          {/* Expand/collapse icon */}
-          <div className="mt-0.5 shrink-0">
-            {isExpanded ? (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+      <div className="relative">
+        {/* Hide button for group */}
+        {onHideGroup && (
+          <button
+            className="absolute top-2 right-2 p-1 rounded hover:bg-background/50 transition-colors z-10"
+            onClick={(e) => {
+              e.stopPropagation();
+              onHideGroup(group.key);
+            }}
+            aria-label={isHidden ? "Unhide group" : "Hide group"}
+            title={isHidden ? "Unhide" : "Hide"}
+          >
+            {isHidden ? (
+              <Eye className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
             ) : (
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              <EyeOff className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
             )}
-          </div>
-          
-          <div className="flex-1 min-w-0">
-            {/* Header badges */}
-            <div className="flex items-center gap-2 flex-wrap mb-2">
-              <span
-                className={cn(
-                  "text-[10px] px-1.5 py-0.5 rounded font-medium text-white",
-                  getValidatorColor(group.source)
-                )}
-              >
-                {group.source}
-              </span>
-              <span
-                className={cn(
-                  "text-xs font-medium capitalize",
-                  isSuccess ? "text-green-400" : getSeverityColor(group.severity)
-                )}
-              >
-                {isSuccess ? "Success" : group.severity}
-              </span>
-              {/* Occurrence count badge */}
-              <span className="text-[10px] px-1.5 py-0.5 bg-primary/20 border border-primary/30 rounded text-primary font-medium">
-                {group.issues.length} occurrences
-              </span>
+          </button>
+        )}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className={cn(
+            "w-full text-left p-3 pr-10 rounded-lg transition-colors duration-200 border",
+            isSuccess 
+              ? "border-green-500/20 bg-green-500/5 hover:bg-green-500/10 hover:border-green-500/30" 
+              : group.severity === "error"
+                ? "border-red-500/20 bg-red-500/5 hover:bg-red-500/10 hover:border-red-500/30"
+                : group.severity === "warning"
+                  ? "border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 hover:border-amber-500/30"
+                  : "border-zinc-500/20 bg-zinc-500/5 hover:bg-zinc-500/10 hover:border-zinc-500/30",
+          )}
+        >
+          <div className="flex items-start gap-2">
+            {/* Expand/collapse icon */}
+            <div className="mt-0.5 shrink-0">
+              {isExpanded ? (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              )}
             </div>
             
-            {/* Message */}
-            <p className="text-sm text-foreground/90 leading-relaxed" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
-              {group.message}
-            </p>
-            
-            {/* Collapsed hint */}
+            <div className="flex-1 min-w-0">
+              {/* Header badges */}
+              <div className="flex items-center gap-2 flex-wrap mb-2">
+                <span
+                  className={cn(
+                    "text-[10px] px-1.5 py-0.5 rounded font-medium text-white",
+                    getValidatorColor(group.source)
+                  )}
+                >
+                  {group.source}
+                </span>
+                <span
+                  className={cn(
+                    "text-xs font-medium capitalize",
+                    isSuccess ? "text-green-400" : getSeverityColor(group.severity)
+                  )}
+                >
+                  {isSuccess ? "Success" : group.severity}
+                </span>
+                {/* Occurrence count badge */}
+                <span className="text-[10px] px-1.5 py-0.5 bg-primary/20 border border-primary/30 rounded text-primary font-medium">
+                  {group.issues.length} occurrences
+                </span>
+              </div>
+              
+              {/* Message */}
+              <p className="text-sm text-foreground/90 leading-relaxed" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+                {group.message}
+              </p>
+              
+              {/* Collapsed hint */}
             {!isExpanded && (
               <p className="text-xs text-muted-foreground mt-2">
                 Click to expand and see all {group.issues.length} affected paths
@@ -256,7 +360,8 @@ const IssueGroupItem = React.memo(({
             )}
           </div>
         </div>
-      </button>
+        </button>
+      </div>
       
       {/* Expanded issues */}
       {isExpanded && (
@@ -269,6 +374,7 @@ const IssueGroupItem = React.memo(({
               getValidatorColor={getValidatorColor}
               getSeverityColor={getSeverityColor}
               onCopyIssue={onCopyIssue}
+              specContent={specContent}
             />
           ))}
         </div>
@@ -278,13 +384,15 @@ const IssueGroupItem = React.memo(({
 });
 IssueGroupItem.displayName = 'IssueGroupItem';
 
-export function VisualValidator({ isLoading, results, specContent, error, score }: VisualValidatorProps) {
+export function VisualValidator({ isLoading, results, specContent, error, score, onNavigateToReadiness }: VisualValidatorProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedSeverities, setSelectedSeverities] = useState<string[]>(["error", "warning", "info"])
   const [enabledValidators, setEnabledValidators] = useState<string[]>([])
   const [highlightedLine, setHighlightedLine] = useState<number | null>(null)
   const [filtersExpanded, setFiltersExpanded] = useState(true) // Open by default on first load
   const [issuesPanelCollapsed, setIssuesPanelCollapsed] = useState(false)
+  const [hiddenGroupKeys, setHiddenGroupKeys] = useState<Set<string>>(new Set())
+  const [showHiddenIssues, setShowHiddenIssues] = useState(false)
   const codeRef = useRef<HTMLDivElement>(null)
 
   // Add a transition state to handle smooth animation between loading and results
@@ -344,8 +452,10 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
   }, [results, enabledValidators, selectedSeverities, searchQuery]);
 
   // Group filtered issues by source + code + message for collapsible display
-  const groupedIssues = useMemo((): IssueGroup[] => {
-    if (!filteredIssues || filteredIssues.length === 0) return [];
+  const { visibleGroups, hiddenGroups } = useMemo(() => {
+    if (!filteredIssues || filteredIssues.length === 0) {
+      return { visibleGroups: [], hiddenGroups: [] };
+    }
     
     const groupMap = new Map<string, IssueGroup>();
     
@@ -368,7 +478,7 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
     }
     
     // Convert to array and sort by severity (errors first), then by count (larger groups first)
-    return Array.from(groupMap.values()).sort((a, b) => {
+    const sorted = Array.from(groupMap.values()).sort((a, b) => {
       // Severity order: error > warning > info
       const severityOrder: Record<string, number> = { error: 0, warning: 1, info: 2 };
       const severityDiff = (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3);
@@ -376,13 +486,43 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
       // Then by count (descending)
       return b.issues.length - a.issues.length;
     });
-  }, [filteredIssues]);
+    
+    // Split into visible and hidden
+    const visible = sorted.filter(g => !hiddenGroupKeys.has(g.key));
+    const hidden = sorted.filter(g => hiddenGroupKeys.has(g.key));
+    
+    return { visibleGroups: visible, hiddenGroups: hidden };
+  }, [filteredIssues, hiddenGroupKeys]);
+  
+  // For backwards compatibility - use visibleGroups as the default
+  const groupedIssues = visibleGroups;
+  
+  // Issues to show in the code viewer (excludes hidden)
+  const visibleIssuesForViewer = useMemo(() => {
+    return filteredIssues.filter(issue => {
+      const key = `${issue.source}|${issue.code}|${issue.message}`;
+      return !hiddenGroupKeys.has(key);
+    });
+  }, [filteredIssues, hiddenGroupKeys]);
 
   // Convert state change handlers to useCallback to prevent recreation on each render
   const toggleValidator = useCallback((validatorSource: string) => {
     setEnabledValidators((prev) =>
       prev.includes(validatorSource) ? prev.filter((source) => source !== validatorSource) : [...prev, validatorSource],
     )
+  }, []);
+
+  // Toggle group visibility (hide/unhide)
+  const toggleGroupHidden = useCallback((groupKey: string) => {
+    setHiddenGroupKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
   }, []);
 
   const toggleSeverity = useCallback((severity: string) => {
@@ -577,16 +717,19 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
             </p>
           </div>
           <div className="shrink-0">
-            <ScoreDisplay score={score} />
+            <ScoreDisplay score={score} onClick={onNavigateToReadiness} />
           </div>
         </div>
       </div>
 
       {/* Search and filter bar */}
       <div className="max-w-6xl mx-auto px-4">
-        <div className="flex flex-col gap-3">
+        <div className={cn(
+          "border border-border/40 bg-card/30 backdrop-blur-sm rounded-lg transition-all duration-200",
+          filtersExpanded && "rounded-b-lg"
+        )}>
           {/* Search row */}
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center p-3">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -601,12 +744,12 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="icon"
                     onClick={handleCopyResults}
-                    className="bg-background/50 hover:bg-background/80 transition-all cursor-pointer"
+                    className="hover:bg-background/50 transition-all cursor-pointer"
                   >
-                    <Copy className="h-4 w-4 transition-colors hover:text-primary" />
+                    <Copy className="h-4 w-4 text-muted-foreground hover:text-foreground transition-colors" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -619,12 +762,12 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="icon"
                     onClick={handleDownloadResults}
-                    className="bg-background/50 hover:bg-background/80 transition-all cursor-pointer"
+                    className="hover:bg-background/50 transition-all cursor-pointer"
                   >
-                    <Download className="h-4 w-4 transition-colors hover:text-primary" />
+                    <Download className="h-4 w-4 text-muted-foreground hover:text-foreground transition-colors" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -633,117 +776,117 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
               </Tooltip>
             </TooltipProvider>
 
-            <Button
-              variant="outline"
-              size="sm"
+            <div className="w-px h-6 bg-border/40" />
+
+            <button
               onClick={() => setFiltersExpanded(v => !v)}
-              className="gap-2 bg-background/50 hover:bg-background/80 hover:text-primary transition-all"
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-all cursor-pointer",
+                filtersExpanded 
+                  ? "bg-primary/10 text-primary" 
+                  : "hover:bg-background/50 text-muted-foreground hover:text-foreground"
+              )}
             >
               <Filter className="h-4 w-4" />
               <span className="hidden sm:inline">Filters</span>
               {(enabledValidators.length < uniqueSources.length || selectedSeverities.length < 3) && (
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-primary" />
               )}
-            </Button>
+              <ChevronDown className={cn(
+                "h-4 w-4 transition-transform duration-200",
+                filtersExpanded && "rotate-180"
+              )} />
+            </button>
           </div>
 
-          {/* Collapsible filter row */}
-          {filtersExpanded && (
-            <Card className="border-border/40 bg-card/30 backdrop-blur-sm animate-in slide-in-from-top-2 duration-200">
-              <CardContent className="p-3">
-                <div className="flex flex-wrap gap-6 items-start">
-                  {/* Validators */}
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Validators</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {uniqueSources.map((source) => (
-                        <button
-                          key={source}
-                          onClick={() => toggleValidator(source)}
-                          className={cn(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all cursor-pointer border",
-                            enabledValidators.includes(source)
-                              ? "bg-background/80 border-border"
-                              : "bg-transparent border-transparent opacity-50 hover:opacity-80"
-                          )}
-                        >
-                          <div className={cn("w-2.5 h-2.5 rounded-full", getValidatorColor(source))} />
-                          <span>{source}</span>
-                          {enabledValidators.includes(source) && (
-                            <span className="text-xs text-muted-foreground">
-                              ({results.filter(r => r.source === source).length})
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
+          {/* Collapsible filter panel - accordion style */}
+          <div className={cn(
+            "overflow-hidden transition-all duration-200",
+            filtersExpanded ? "max-h-[200px] opacity-100" : "max-h-0 opacity-0"
+          )}>
+            <div className="px-3 pb-3 pt-0 border-t border-border/30">
+              <div className="flex flex-wrap gap-6 items-start pt-3">
+                {/* Validators */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Validators</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {uniqueSources.map((source) => (
+                      <button
+                        key={source}
+                        onClick={() => toggleValidator(source)}
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all cursor-pointer border",
+                          enabledValidators.includes(source)
+                            ? "bg-background/80 border-border"
+                            : "bg-transparent border-transparent opacity-50 hover:opacity-80"
+                        )}
+                      >
+                        <div className={cn("w-2.5 h-2.5 rounded-full", getValidatorColor(source))} />
+                        <span>{source}</span>
+                        {enabledValidators.includes(source) && (
+                          <span className="text-xs text-muted-foreground">
+                            ({results.filter(r => r.source === source).length})
+                          </span>
+                        )}
+                      </button>
+                    ))}
                   </div>
-
-                  {/* Separator */}
-                  <div className="w-px h-12 bg-border/40 hidden sm:block" />
-
-                  {/* Severity */}
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Severity</h4>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => toggleSeverity("error")}
-                        className={cn(
-                          "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all cursor-pointer border",
-                          selectedSeverities.includes("error")
-                            ? "bg-red-500/10 border-red-500/30 text-red-400"
-                            : "bg-transparent border-transparent opacity-50 hover:opacity-80"
-                        )}
-                      >
-                        <span>Errors</span>
-                        <span className="text-xs opacity-70">
-                          ({results.filter(r => r.severity === 'error' && !r.code.includes('SUCCESS')).length})
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => toggleSeverity("warning")}
-                        className={cn(
-                          "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all cursor-pointer border",
-                          selectedSeverities.includes("warning")
-                            ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
-                            : "bg-transparent border-transparent opacity-50 hover:opacity-80"
-                        )}
-                      >
-                        <span>Warnings</span>
-                        <span className="text-xs opacity-70">
-                          ({results.filter(r => r.severity === 'warning').length})
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => toggleSeverity("info")}
-                        className={cn(
-                          "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all cursor-pointer border",
-                          selectedSeverities.includes("info")
-                            ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
-                            : "bg-transparent border-transparent opacity-50 hover:opacity-80"
-                        )}
-                      >
-                        <span>Info</span>
-                        <span className="text-xs opacity-70">
-                          ({results.filter(r => r.severity === 'info').length})
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Close button */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setFiltersExpanded(false)}
-                    className="ml-auto text-muted-foreground hover:text-foreground"
-                  >
-                    Done
-                  </Button>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+
+                {/* Separator */}
+                <div className="w-px h-12 bg-border/40 hidden sm:block" />
+
+                {/* Severity */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Severity</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => toggleSeverity("error")}
+                      className={cn(
+                        "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all cursor-pointer border",
+                        selectedSeverities.includes("error")
+                          ? "bg-red-500/10 border-red-500/30 text-red-400"
+                          : "bg-transparent border-transparent opacity-50 hover:opacity-80"
+                      )}
+                    >
+                      <span>Errors</span>
+                      <span className="text-xs opacity-70">
+                        ({results.filter(r => r.severity === 'error' && !r.code.includes('SUCCESS')).length})
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => toggleSeverity("warning")}
+                      className={cn(
+                        "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all cursor-pointer border",
+                        selectedSeverities.includes("warning")
+                          ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                          : "bg-transparent border-transparent opacity-50 hover:opacity-80"
+                      )}
+                    >
+                      <span>Warnings</span>
+                      <span className="text-xs opacity-70">
+                        ({results.filter(r => r.severity === 'warning').length})
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => toggleSeverity("info")}
+                      className={cn(
+                        "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all cursor-pointer border",
+                        selectedSeverities.includes("info")
+                          ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
+                          : "bg-transparent border-transparent opacity-50 hover:opacity-80"
+                      )}
+                    >
+                      <span>Info</span>
+                      <span className="text-xs opacity-70">
+                        ({results.filter(r => r.severity === 'info').length})
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -768,7 +911,7 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
               <div className="h-[1000px]" ref={codeRef}>
                 <VirtualisedCodeViewer
                   content={specContent || ""}
-                  issues={filteredIssues}
+                  issues={visibleIssuesForViewer}
                   highlightedLine={highlightedLine}
                   onLineClick={scrollToLine}
                 />
@@ -810,7 +953,7 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
                     className="text-sm font-medium text-muted-foreground whitespace-nowrap"
                     style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
                   >
-                    Issues ({filteredIssues.length}{groupedIssues.length !== filteredIssues.length ? ` in ${groupedIssues.length}` : ''})
+                    Issues ({visibleIssuesForViewer.length}{hiddenGroups.length > 0 ? ` • ${hiddenGroups.reduce((a, g) => a + g.issues.length, 0)} hidden` : ''})
                   </span>
                 </div>
                 
@@ -838,10 +981,15 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg flex items-center justify-between">
                     <span>
-                      Issues ({filteredIssues.length})
-                      {groupedIssues.length !== filteredIssues.length && (
+                      Issues ({visibleIssuesForViewer.length})
+                      {visibleGroups.length !== visibleIssuesForViewer.length && (
                         <span className="text-xs text-muted-foreground font-normal ml-2">
-                          {groupedIssues.length} groups
+                          {visibleGroups.length} groups
+                        </span>
+                      )}
+                      {hiddenGroups.length > 0 && (
+                        <span className="text-xs text-muted-foreground/60 font-normal ml-2">
+                          • {hiddenGroups.reduce((a, g) => a + g.issues.length, 0)} hidden
                         </span>
                       )}
                     </span>
@@ -876,11 +1024,53 @@ export function VisualValidator({ isLoading, results, specContent, error, score 
                             getValidatorColor={getValidatorColor}
                             getSeverityColor={getSeverityColor}
                             onCopyIssue={handleCopyIssue}
+                            onHideGroup={toggleGroupHidden}
+                            isHidden={false}
+                            specContent={specContent}
                           />
                         ))
-                      ) : (
+                      ) : hiddenGroups.length === 0 ? (
                         <div className="flex justify-center items-center h-[300px] text-muted-foreground">
                           No issues found matching your filters
+                        </div>
+                      ) : null}
+                      
+                      {/* Hidden issues section */}
+                      {hiddenGroups.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-border/40">
+                          <button
+                            onClick={() => setShowHiddenIssues(v => !v)}
+                            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full"
+                          >
+                            {showHiddenIssues ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                            <Eye className="h-4 w-4" />
+                            <span>
+                              Hidden Issues ({hiddenGroups.reduce((acc, g) => acc + g.issues.length, 0)} in {hiddenGroups.length} groups)
+                            </span>
+                          </button>
+                          
+                          {showHiddenIssues && (
+                            <div className="mt-3 space-y-2 animate-in slide-in-from-top-2 duration-200">
+                              {hiddenGroups.map((group) => (
+                                <div key={group.key} className="opacity-60">
+                                  <IssueGroupItem
+                                    group={group}
+                                    scrollToLine={scrollToLine}
+                                    getValidatorColor={getValidatorColor}
+                                    getSeverityColor={getSeverityColor}
+                                    onCopyIssue={handleCopyIssue}
+                                    onHideGroup={toggleGroupHidden}
+                                    isHidden={true}
+                                    specContent={specContent}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

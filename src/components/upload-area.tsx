@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useCallback, useEffect } from "react"
-import { Upload, FileUp, Check, Loader2, Globe } from "lucide-react"
+import { Upload, FileUp, Check, Loader2, Globe, ClipboardPaste } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "sonner"
@@ -27,7 +27,8 @@ export function UploadArea({
   const [isProcessingResults, setIsProcessingResults] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
   const [urlValue, setUrlValue] = useState<string>('')
-  const [activeSource, setActiveSource] = useState<'file' | 'url'>('file')
+  const [pastedContent, setPastedContent] = useState<string>('')
+  const [activeSource, setActiveSource] = useState<'file' | 'url' | 'paste'>('file')
 
   const handleFileUpload = useCallback(async (file: File) => {
     if (!file.name.endsWith(".json") && !file.name.endsWith(".yaml") && !file.name.endsWith(".yml")) {
@@ -221,6 +222,94 @@ export function UploadArea({
     }
   }, [urlValue, onValidationStart, onValidationComplete])
 
+  const handlePastedValidation = useCallback(async () => {
+    const trimmedContent = pastedContent.trim()
+    
+    if (!trimmedContent) {
+      toast.error("Content Required", {
+        description: "Please paste your OpenAPI specification",
+      })
+      return
+    }
+
+    // Basic validation - check if it looks like JSON or YAML
+    const looksLikeJson = trimmedContent.startsWith('{') || trimmedContent.startsWith('[')
+    const looksLikeYaml = trimmedContent.includes('openapi:') || trimmedContent.includes('"openapi"')
+    
+    if (!looksLikeJson && !looksLikeYaml) {
+      toast.error("Invalid Format", {
+        description: "Content doesn't appear to be a valid JSON or YAML OpenAPI specification",
+      })
+      return
+    }
+
+    // Check size (rough estimate - 4.5MB limit)
+    const contentSize = new Blob([trimmedContent]).size
+    const MAX_SIZE_BYTES = 4.5 * 1000 * 1000
+    if (contentSize > MAX_SIZE_BYTES) {
+      toast.error("Content Too Large", {
+        description: "Pasted content exceeds the 4.5 MB limit.",
+      })
+      return
+    }
+
+    console.log("Starting pasted content validation...")
+    setFileName('pasted-spec')
+    setIsUploading(true)
+    setIsProcessingResults(false)
+    onValidationStart()
+
+    try {
+      // Create a file-like blob and use the same /api/validate endpoint
+      const blob = new Blob([trimmedContent], { 
+        type: looksLikeJson ? 'application/json' : 'application/yaml' 
+      })
+      const file = new File([blob], looksLikeJson ? 'pasted-spec.json' : 'pasted-spec.yaml', {
+        type: blob.type
+      })
+      
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('/api/validate', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (response.status === 413) {
+        const errorMessage = "Content exceeds the 4.5 MB limit."
+        toast.error("Content Too Large", { description: errorMessage })
+        setIsUploading(false)
+        setIsProcessingResults(false)
+        onValidationComplete([], trimmedContent, errorMessage)
+        return
+      }
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || `Validation request failed: ${response.statusText}`)
+      }
+
+      setIsProcessingResults(true)
+      console.log("API validation complete, processing results...")
+      
+      toast.success("Validation complete!", {
+        description: `Checked across validators. Please wait while the results are loaded.`,
+      })
+      
+      onValidationComplete(data.results || [], trimmedContent)
+      
+    } catch (fetchError) {
+      console.error("Pasted content validation failed:", fetchError)
+      const errorMessage = fetchError instanceof Error ? fetchError.message : "An unknown error occurred during validation."
+      toast.error("Validation failed", { description: errorMessage })
+      setIsUploading(false)
+      setIsProcessingResults(false)
+      onValidationComplete([], trimmedContent, errorMessage)
+    }
+  }, [pastedContent, onValidationStart, onValidationComplete])
+
   // Update our local loading states when parent changes
   useEffect(() => {
     // If parent is no longer loading but we still have processing flags active,
@@ -263,10 +352,11 @@ export function UploadArea({
   return (
     <Card className="mb-8 border-border/40 bg-card/30 backdrop-blur-sm">
       <CardContent className="p-4">
-        <Tabs defaultValue="file" onValueChange={(value) => setActiveSource(value as 'file' | 'url')} className="mb-4">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="file">Upload File</TabsTrigger>
-            <TabsTrigger value="url">Fetch from URL</TabsTrigger>
+        <Tabs defaultValue="file" onValueChange={(value) => setActiveSource(value as 'file' | 'url' | 'paste')} className="mb-4">
+          <TabsList className="grid w-full grid-cols-3 gap-1 p-1">
+            <TabsTrigger value="file">Upload</TabsTrigger>
+            <TabsTrigger value="url">Fetch URL</TabsTrigger>
+            <TabsTrigger value="paste">Paste</TabsTrigger>
           </TabsList>
           <TabsContent value="file">
             <div
@@ -344,21 +434,10 @@ export function UploadArea({
             </div>
           </TabsContent>
           <TabsContent value="url">
-            <div
-              className={cn(
-                "border-2 border-dashed rounded-lg p-4 transition-all duration-200",
-                "border-border/50 hover:border-primary/30 hover:bg-card/50",
-                isActive && "cursor-not-allowed opacity-70"
-              )}
-            >
+            <div className={cn("rounded-lg p-4", isActive && "cursor-not-allowed opacity-70")}>
               <div className="flex items-center justify-center sm:justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-4">
-                  <div
-                    className={cn(
-                      "rounded-full p-3 transition-all duration-200",
-                      "bg-primary/10 group-hover:bg-primary/20",
-                    )}
-                  >
+                  <div className="rounded-full p-3 bg-primary/10">
                     {isActive ? (
                       <Loader2 className="h-6 w-6 text-primary animate-spin" />
                     ) : (
@@ -405,6 +484,63 @@ export function UploadArea({
             <div className="flex justify-between text-xs text-muted-foreground mt-2">
               <p>Refreshing your page will discard any data. We don&apos;t keep anything.</p>
               <p>URL must point to a valid JSON or YAML OpenAPI specification</p>
+            </div>
+          </TabsContent>
+          <TabsContent value="paste">
+            <div className={cn("rounded-lg p-4", isActive && "cursor-not-allowed opacity-70")}>
+              <div className="flex items-center justify-center sm:justify-between gap-4 flex-wrap mb-4">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-full p-3 bg-primary/10">
+                    {isActive ? (
+                      <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                    ) : (
+                      <ClipboardPaste className="h-6 w-6 text-primary" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold">Paste your spec</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {isUploading ? "Validating..." : isProcessingResults ? "Preparing results..." : "Paste your OpenAPI 3.x JSON or YAML directly"}
+                    </p>
+                    {activeSource === 'paste' && isActive && (
+                      <div className="flex items-center gap-2 text-sm mt-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span>{isUploading ? `Validating pasted spec...` : `Processing results...`}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  onClick={handlePastedValidation}
+                  disabled={isActive || !pastedContent.trim()}
+                  variant="outline"
+                  className="gap-2 bg-background/50 hover:bg-background/80 hover:text-primary transition-all whitespace-nowrap"
+                >
+                  {isActive ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                  {isUploading ? "Validating..." : isProcessingResults ? "Processing..." : "Validate"}
+                </Button>
+              </div>
+              <textarea
+                placeholder={`Paste your OpenAPI specification here...\n\nExample:\n{\n  "openapi": "3.0.0",\n  "info": { "title": "My API", "version": "1.0.0" },\n  ...\n}`}
+                value={pastedContent}
+                onChange={(e) => setPastedContent(e.target.value)}
+                disabled={isActive}
+                className={cn(
+                  "w-full h-48 p-3 rounded-md font-mono text-sm resize-none",
+                  "bg-background/50 border border-border/50",
+                  "placeholder:text-muted-foreground/50",
+                  "focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50",
+                  "disabled:opacity-50 disabled:cursor-not-allowed"
+                )}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground mt-2">
+              <p>Refreshing your page will discard the data. We don&apos;t store your spec.</p>
+              <p>Maximum content size: 4.5 MB</p>
             </div>
           </TabsContent>
         </Tabs>
