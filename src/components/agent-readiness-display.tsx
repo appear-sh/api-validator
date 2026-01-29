@@ -27,6 +27,7 @@ import { toast } from "sonner"
 import type { AgentReadinessScore, DimensionScore, Grade, Signal, ValidationResult } from "@/lib/types"
 import { MethodologyModal } from "@/components/methodology-modal"
 import { UnicornBackground } from "@/components/unicorn-background"
+import { LottieLoader } from "@/components/ui/lottie-loader"
 import Image from "next/image"
 
 interface AgentReadinessDisplayProps {
@@ -392,9 +393,16 @@ export function AgentReadinessDisplay({ score, isLoading = false, validationResu
     }
   }, [score])
 
-  // Show loading skeleton while calculating
+  // Show Lottie animation while calculating
   if (isLoading || (!score && isLoading)) {
-    return <LoadingSkeleton />
+    return (
+      <Card className="border-border/40 bg-card/30 backdrop-blur-sm">
+        <CardContent className="p-6 flex flex-col justify-center items-center min-h-[400px]">
+          <LottieLoader height={160} width={160} />
+          <p className="text-muted-foreground mt-4 text-sm">Calculating your Agent-Ready Score...</p>
+        </CardContent>
+      </Card>
+    )
   }
 
   if (!score) {

@@ -155,6 +155,17 @@ export default function Home() {
           </div>
         )}
 
+        {/* Loading state - validation in progress, no results yet */}
+        {!hasResults && showLoading && (
+          <div className="max-w-6xl mx-auto">
+            <AgentReadinessDisplay 
+              score={null} 
+              isLoading={true}
+              validationResults={[]}
+            />
+          </div>
+        )}
+
         {/* Initial state - no results yet */}
         {!hasResults && !showLoading && (
           <div className="max-w-6xl mx-auto">
