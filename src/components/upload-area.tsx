@@ -62,6 +62,18 @@ export function UploadArea({
     try {
       // Read content locally for display, separate from upload
       specContent = await file.text()
+      
+      // Pretty-print JSON if it appears to be minified (no newlines)
+      // This ensures the code viewer can display it with proper line breaks
+      const isJson = file.type === 'application/json' || file.name.endsWith('.json')
+      if (isJson && !specContent.includes('\n')) {
+        try {
+          const parsed = JSON.parse(specContent)
+          specContent = JSON.stringify(parsed, null, 2)
+        } catch {
+          // If parsing fails, keep the original text
+        }
+      }
     } catch (readError) {
       console.error("Error reading file locally:", readError)
       toast.error("File Read Error", {
@@ -223,7 +235,7 @@ export function UploadArea({
   }, [urlValue, onValidationStart, onValidationComplete])
 
   const handlePastedValidation = useCallback(async () => {
-    const trimmedContent = pastedContent.trim()
+    let trimmedContent = pastedContent.trim()
     
     if (!trimmedContent) {
       toast.error("Content Required", {
@@ -241,6 +253,17 @@ export function UploadArea({
         description: "Content doesn't appear to be a valid JSON or YAML OpenAPI specification",
       })
       return
+    }
+
+    // Pretty-print JSON if it appears to be minified (no newlines)
+    // This ensures the code viewer can display it with proper line breaks
+    if (looksLikeJson && !trimmedContent.includes('\n')) {
+      try {
+        const parsed = JSON.parse(trimmedContent)
+        trimmedContent = JSON.stringify(parsed, null, 2)
+      } catch {
+        // If parsing fails, keep the original text
+      }
     }
 
     // Check size (rough estimate - 4.5MB limit)

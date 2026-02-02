@@ -32,7 +32,19 @@ export async function POST(request: Request) {
     }
 
     const contentType = upstream.headers.get('content-type') || 'text/plain; charset=utf-8'
-    const text = await upstream.text()
+    let text = await upstream.text()
+
+    // Pretty-print JSON if it appears to be minified (no newlines)
+    // This ensures the code viewer can display it with proper line breaks
+    const isJson = contentType.includes('json') || url.endsWith('.json')
+    if (isJson && !text.includes('\n')) {
+      try {
+        const parsed = JSON.parse(text)
+        text = JSON.stringify(parsed, null, 2)
+      } catch {
+        // If parsing fails, keep the original text
+      }
+    }
 
     return new Response(text, {
       status: 200,
