@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback } from "react"
 import { Upload, FileUp, Check, Loader2, Globe, ClipboardPaste } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -23,8 +23,8 @@ export function UploadArea({
   isLoading: parentIsLoading 
 }: UploadAreaProps) {
   const [isDragging, setIsDragging] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
-  const [isProcessingResults, setIsProcessingResults] = useState(false)
+  const [localUploading, setIsUploading] = useState(false)
+  const [localProcessing, setIsProcessingResults] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
   const [urlValue, setUrlValue] = useState<string>('')
   const [pastedContent, setPastedContent] = useState<string>('')
@@ -333,16 +333,8 @@ export function UploadArea({
     }
   }, [pastedContent, onValidationStart, onValidationComplete])
 
-  // Update our local loading states when parent changes
-  useEffect(() => {
-    // If parent is no longer loading but we still have processing flags active,
-    // this means the parent has finished processing the results and we can stop our indicators
-    if (parentIsLoading === false && (isUploading || isProcessingResults)) {
-      console.log("Parent finished loading, resetting upload states");
-      setIsUploading(false);
-      setIsProcessingResults(false);
-    }
-  }, [parentIsLoading, isUploading, isProcessingResults]);
+  const isUploading = parentIsLoading && localUploading
+  const isProcessingResults = parentIsLoading && localProcessing
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()

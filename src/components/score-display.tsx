@@ -75,10 +75,10 @@ export function ScoreDisplay({ score, onClick }: ScoreDisplayProps) {
       </div>
       <div>
         <p className={cn("font-semibold transition-colors duration-300", currentTextColorClass)}>
-          Readiness Score
+          Checklist score
         </p>
         <p className="text-sm text-muted-foreground">
-          {onClick ? "Click to view details" : "Agent-ready"}
+          {onClick ? "Click to view details" : "Spec coverage"}
         </p>
       </div>
     </div>

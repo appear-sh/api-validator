@@ -1,42 +1,45 @@
 import { NextResponse } from 'next/server'
+import { readHttpsUrl } from '@/lib/https-url'
+import { fetchPublicHttps } from '@/lib/safe-fetch'
+import { SPEC_TOO_LARGE, assertSpecBudget } from '@/lib/spec-limits'
+
+export const runtime = 'nodejs'
+export const maxDuration = 15
 
 export async function POST(request: Request) {
   try {
-    const { url } = await request.json()
-
-    if (!url || typeof url !== 'string') {
-      return NextResponse.json({ error: 'No URL provided.' }, { status: 400 })
-    }
-
-    // Basic protocol hardening
-    const parsed = new URL(url)
-    if (parsed.protocol !== 'https:') {
-      return NextResponse.json({ error: 'Only HTTPS URLs are allowed.' }, { status: 400 })
-    }
-
-    let upstream
+    let body: unknown
     try {
-      upstream = await fetch(url, {
-        // Prefer textual content types
-        headers: {
-          Accept: 'application/json, application/yaml, text/yaml, text/*;q=0.9, */*;q=0.1',
-        },
-        cache: 'no-store',
-      })
-    } catch (e) {
-      return NextResponse.json({ error: `Failed to fetch URL: ${e instanceof Error ? e.message : 'Unknown error'}` }, { status: 400 })
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Request body must be JSON with a url field.' },
+        { status: 400 },
+      )
     }
 
-    if (!upstream.ok) {
-      return NextResponse.json({ error: `Upstream error: ${upstream.status} ${upstream.statusText}` }, { status: 400 })
+    const parsedUrl = readHttpsUrl(body)
+    if ('error' in parsedUrl) {
+      return NextResponse.json({ error: parsedUrl.error }, { status: 400 })
     }
+    const { url } = parsedUrl
 
-    const contentType = upstream.headers.get('content-type') || 'text/plain; charset=utf-8'
-    let text = await upstream.text()
+    const fetched = await fetchPublicHttps(url, {
+      accept: 'application/json, application/yaml, text/yaml, text/*;q=0.9, */*;q=0.1',
+    })
+    if ('error' in fetched) {
+      return NextResponse.json({ error: fetched.error }, { status: 400 })
+    }
+    const { text: fetchedText, contentType, finalUrl } = fetched
+    const budget = assertSpecBudget(fetchedText)
+    if (budget) {
+      return NextResponse.json({ error: budget.error }, { status: budget.error === SPEC_TOO_LARGE ? 413 : 400 })
+    }
+    let text = fetchedText
 
     // Pretty-print JSON if it appears to be minified (no newlines)
     // This ensures the code viewer can display it with proper line breaks
-    const isJson = contentType.includes('json') || url.endsWith('.json')
+    const isJson = contentType.includes('json') || finalUrl.endsWith('.json')
     if (isJson && !text.includes('\n')) {
       try {
         const parsed = JSON.parse(text)

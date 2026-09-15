@@ -1,11 +1,11 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useSyncExternalStore } from "react"
 import dynamic from 'next/dynamic'
 import { cn } from "@/lib/utils"
 
 // Dynamically import Lottie with SSR disabled
-const Lottie = dynamic(() => import('lottie-react'), { ssr: false })
+const Lottie = dynamic(() => import('lottie-react').then((mod) => mod.Lottie), { ssr: false })
 
 // Define a type for Lottie animation data
 type LottieAnimationData = Record<string, unknown>;
@@ -26,17 +26,26 @@ export function LottieLoader({
   textClassName
 }: LottieLoaderProps) {
   const [animationData, setAnimationData] = useState<LottieAnimationData | null>(null);
-  const [isMounted, setIsMounted] = useState(false);
+  const isMounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   useEffect(() => {
-    setIsMounted(true);
-    
-    // Dynamically import the animation file
+    if (!isMounted) return
+
+    let cancelled = false
     fetch('/Loader Lottie.json')
       .then(response => response.json())
-      .then(data => setAnimationData(data))
+      .then(data => {
+        if (!cancelled) setAnimationData(data)
+      })
       .catch(error => console.error('Error loading animation:', error));
-  }, []);
+    return () => {
+      cancelled = true
+    }
+  }, [isMounted]);
 
   // Server-side or initial mount, use fallback spinner
   if (!isMounted || !animationData) {
@@ -55,8 +64,9 @@ export function LottieLoader({
     <div className="flex flex-col items-center gap-4">
       <div style={{ height, width }} className={cn("relative", className)}>
         <Lottie
-          animationData={animationData}
-          loop={true}
+          src={animationData}
+          loop
+          autoplay
           style={{ height: '100%', width: '100%' }}
         />
       </div>

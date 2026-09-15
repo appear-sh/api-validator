@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
 import { Spectral, ISpectralDiagnostic } from '@stoplight/spectral-core';
 import { oas } from '@stoplight/spectral-rulesets';
-import yaml from 'js-yaml';
+import { load as loadYaml } from 'js-yaml';
 import SwaggerParser from '@apidevtools/swagger-parser';
 import { validateOpenAPIDocument } from '@appear.sh/oas-zod-validator';
 import { ZodError } from 'zod';
 import type { ValidationResult } from '@/lib/types';
+import { SPEC_MAX_BYTES, SPEC_TOO_LARGE, SWAGGER_LOCAL_REFS_ONLY, assertSpecBudget } from '@/lib/spec-limits';
+
+export const runtime = 'nodejs';
+export const maxDuration = 30;
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -67,14 +71,29 @@ interface SwaggerParserError extends Error {
 
 export async function POST(request: Request) {
   try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File | null;
+    let formData: FormData
+    try {
+      formData = await request.formData()
+    } catch {
+      return NextResponse.json(
+        { error: 'Upload a file as multipart form data.' },
+        { status: 400 },
+      )
+    }
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file uploaded.' }, { status: 400 });
+    const file = formData.get('file')
+    if (!(file instanceof File) || file.size === 0) {
+      return NextResponse.json({ error: 'No file uploaded.' }, { status: 400 })
+    }
+    if (file.size > SPEC_MAX_BYTES) {
+      return NextResponse.json({ error: SPEC_TOO_LARGE }, { status: 413 })
     }
 
     const fileContent = await file.text();
+    const budget = assertSpecBudget(fileContent)
+    if (budget) {
+      return NextResponse.json({ error: budget.error }, { status: budget.error === SPEC_TOO_LARGE ? 413 : 400 })
+    }
     // validateOpenAPI takes the raw string (JSON or YAML)
 
     if (isDev) console.log(`Received file: ${file.name}, Type: ${file.type}, Size: ${file.size} bytes`);
@@ -94,7 +113,7 @@ export async function POST(request: Request) {
                 spectralParsedContent = result as Record<string, unknown>;
             } else { throw new Error('Parsed JSON for Spectral is not an object.'); }
         } else { // Assume YAML otherwise or if type is unknown/generic
-            const result = yaml.load(fileContent);
+            const result = loadYaml(fileContent);
             if (typeof result === 'object' && result !== null) {
                 spectralParsedContent = result as Record<string, unknown>;
             } else { throw new Error('Parsed YAML for Spectral is not an object.'); }
@@ -197,7 +216,7 @@ export async function POST(request: Request) {
           try {
             if (isDev) console.log('Running Swagger Parser validation...');
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await SwaggerParser.validate(structuredClone(spectralParsedContent) as any);
+            await SwaggerParser.validate(structuredClone(spectralParsedContent) as any, SWAGGER_LOCAL_REFS_ONLY);
             if (isDev) console.log('Swagger Parser validation successful (no structural errors found).');
             return [{
               source: 'SwaggerParser',

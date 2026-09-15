@@ -387,7 +387,17 @@ IssueGroupItem.displayName = 'IssueGroupItem';
 export function VisualValidator({ isLoading, results, specContent, error, score, onNavigateToReadiness }: VisualValidatorProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedSeverities, setSelectedSeverities] = useState<string[]>(["error", "warning", "info"])
+  const uniqueSources = useMemo(
+    () => [...new Set(results.map(r => r.source))],
+    [results]
+  )
   const [enabledValidators, setEnabledValidators] = useState<string[]>([])
+  const [resultsFingerprint, setResultsFingerprint] = useState('')
+  const nextFingerprint = `${isLoading ? 'loading' : 'ready'}:${uniqueSources.join('|')}`
+  if (resultsFingerprint !== nextFingerprint) {
+    setResultsFingerprint(nextFingerprint)
+    setEnabledValidators(!isLoading && uniqueSources.length > 0 ? uniqueSources : [])
+  }
   const [highlightedLine, setHighlightedLine] = useState<number | null>(null)
   const [filtersExpanded, setFiltersExpanded] = useState(true) // Open by default on first load
   const [issuesPanelCollapsed, setIssuesPanelCollapsed] = useState(false)
@@ -395,41 +405,21 @@ export function VisualValidator({ isLoading, results, specContent, error, score,
   const [showHiddenIssues, setShowHiddenIssues] = useState(false)
   const codeRef = useRef<HTMLDivElement>(null)
 
-  // Add a transition state to handle smooth animation between loading and results
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  
-  // Set all validators as enabled by default when results load, using a layout effect
-  // which runs synchronously before browser paint to reduce flicker
+  const [transitionOn, setTransitionOn] = useState(false)
   useEffect(() => {
-    if (results && results.length > 0 && !isLoading) {
-      const sources = [...new Set(results.map(r => r.source))];
-      setEnabledValidators(sources);
-    } else if (results.length === 0 && !isLoading) {
-      setEnabledValidators([]); // Clear if no results
+    if (isLoading || !(results.length > 0 || error)) return
+    const frame = requestAnimationFrame(() => {
+      setTransitionOn(true)
+    })
+    const timer = setTimeout(() => {
+      setTransitionOn(false)
+    }, 300)
+    return () => {
+      cancelAnimationFrame(frame)
+      clearTimeout(timer)
     }
-  }, [results, isLoading])
-
-  // Detect loading state changes to trigger transition effects
-  useEffect(() => {
-    if (isLoading) {
-      // When loading starts, clear transition state
-      setIsTransitioning(false);
-    } else if (results.length > 0 || error) {
-      // When loading finishes and we have results or errors,
-      // trigger a brief transition state for smooth UI
-      setIsTransitioning(true);
-      const timer = setTimeout(() => {
-        setIsTransitioning(false);
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [isLoading, results.length, error]);
-
-  // Memoize the unique sources to prevent recalculation on every render
-  const uniqueSources = useMemo(() => 
-    [...new Set(results.map(r => r.source))], 
-    [results]
-  );
+  }, [isLoading, results.length, error])
+  const isTransitioning = !isLoading && transitionOn
 
   // Memoize the filtered issues to prevent recomputation on every render
   const filteredIssues = useMemo(() => {
@@ -710,7 +700,7 @@ export function VisualValidator({ isLoading, results, specContent, error, score,
           <div>
             <h2 className="text-2xl font-bold">Technical Validation</h2>
             <p className="text-muted-foreground">
-              Structural validity checks that impact agent readiness
+              Structural validity checks from the lint engines
             </p>
             <p className="text-xs text-muted-foreground/70 mt-1">
               Parsing errors and schema issues directly affect the <span className="text-primary">Foundational Compliance</span> dimension of your Agent-Ready Score.

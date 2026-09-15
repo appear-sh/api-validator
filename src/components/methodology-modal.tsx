@@ -77,7 +77,7 @@ export function MethodologyModal({ trigger, className }: MethodologyModalProps) 
             <div>
               <DialogTitle className="text-xl">{METHODOLOGY.name}</DialogTitle>
               <DialogDescription className="text-sm text-muted-foreground mt-0.5">
-                {METHODOLOGY.author}&apos;s framework for AI agent readiness
+                {METHODOLOGY.author}&apos;s static OpenAPI checklist — not a runtime test
               </DialogDescription>
             </div>
           </div>
@@ -275,7 +275,7 @@ export function MethodologyModal({ trigger, className }: MethodologyModalProps) 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-border/50 bg-muted/20">
           <p className="text-xs text-muted-foreground text-center">
-            Version {METHODOLOGY.version} · Built by{' '}
+            Version {METHODOLOGY.version} · Originally built at{' '}
             <a 
               href="https://appear.sh" 
               target="_blank" 
@@ -283,6 +283,15 @@ export function MethodologyModal({ trigger, className }: MethodologyModalProps) 
               className="text-primary hover:underline"
             >
               Appear
+            </a>
+            . The founders now build{' '}
+            <a 
+              href="https://www.ctxpipe.ai" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-[#40E0D0] hover:text-[#64e1dc] hover:underline"
+            >
+              ctxpipe.ai
             </a>
           </p>
         </div>

@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import { Spectral } from '@stoplight/spectral-core';
 import { oas } from '@stoplight/spectral-rulesets';
-import yaml from 'js-yaml';
+import { load as loadYaml } from 'js-yaml';
 import SwaggerParser from '@apidevtools/swagger-parser';
 import { validateOpenAPIDocument } from '@appear.sh/oas-zod-validator';
 import { ZodError } from 'zod';
 import type { ValidationResult } from '@/lib/types';
+import { readHttpsUrl } from '@/lib/https-url';
+import { fetchPublicHttps } from '@/lib/safe-fetch';
+import { SPEC_TOO_LARGE, SWAGGER_LOCAL_REFS_ONLY, assertSpecBudget } from '@/lib/spec-limits';
+
+export const runtime = 'nodejs';
+export const maxDuration = 30;
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -59,38 +65,35 @@ interface SwaggerParserError extends Error {
 
 export async function POST(request: Request) {
   try {
-    const { url } = await request.json();
-
-    if (!url) {
-      return NextResponse.json({ error: 'No URL provided.' }, { status: 400 });
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Request body must be JSON with a url field.' },
+        { status: 400 },
+      )
     }
+
+    const parsedUrl = readHttpsUrl(body)
+    if ('error' in parsedUrl) {
+      return NextResponse.json({ error: parsedUrl.error }, { status: 400 })
+    }
+    const { url } = parsedUrl
 
     if (isDev) console.log(`Fetching OpenAPI spec from URL: ${url}`);
 
-    // Fetch the specification from the provided URL
-    let response;
-    try {
-      response = await fetch(url, {
-        headers: {
-          'Accept': 'application/json, application/yaml, text/yaml, */*',
-        },
-      });
-
-      if (!response.ok) {
-        return NextResponse.json({ 
-          error: `Failed to fetch from URL: ${response.status} ${response.statusText}` 
-        }, { status: 400 });
-      }
-    } catch (fetchError) {
-      if (isDev) console.error('Error fetching from URL:', fetchError);
-      return NextResponse.json({ 
-        error: `Failed to fetch from URL: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}` 
-      }, { status: 400 });
+    const fetched = await fetchPublicHttps(url, {
+      accept: 'application/json, application/yaml, text/yaml, */*',
+    })
+    if ('error' in fetched) {
+      return NextResponse.json({ error: fetched.error }, { status: 400 })
     }
-
-    // Get the content type to determine if it's JSON or YAML
-    const contentType = response.headers.get('Content-Type') || '';
-    const fileContent = await response.text();
+    const { text: fileContent, contentType, finalUrl } = fetched
+    const budget = assertSpecBudget(fileContent)
+    if (budget) {
+      return NextResponse.json({ error: budget.error }, { status: budget.error === SPEC_TOO_LARGE ? 413 : 400 })
+    }
 
     // Initialize results array
     let allValidationResults: ValidationResult[] = [];
@@ -98,13 +101,13 @@ export async function POST(request: Request) {
     // --- Spectral Validation ---
     let spectralParsedContent: Record<string, unknown>;
     try {
-      if (contentType.includes('application/json') || url.endsWith('.json')) {
+      if (contentType.includes('application/json') || finalUrl.endsWith('.json')) {
         const result = JSON.parse(fileContent);
         if (typeof result === 'object' && result !== null) {
           spectralParsedContent = result as Record<string, unknown>;
         } else { throw new Error('Parsed JSON for Spectral is not an object.'); }
       } else { // Assume YAML otherwise or if type is unknown/generic
-        const result = yaml.load(fileContent);
+        const result = loadYaml(fileContent);
         if (typeof result === 'object' && result !== null) {
           spectralParsedContent = result as Record<string, unknown>;
         } else { throw new Error('Parsed YAML for Spectral is not an object.'); }
@@ -205,7 +208,7 @@ export async function POST(request: Request) {
           try {
             if (isDev) console.log('Running Swagger Parser validation...');
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await SwaggerParser.validate(structuredClone(spectralParsedContent) as any);
+            await SwaggerParser.validate(structuredClone(spectralParsedContent) as any, SWAGGER_LOCAL_REFS_ONLY);
             if (isDev) console.log('Swagger Parser validation successful (no structural errors found).');
             return [{
               source: 'SwaggerParser',

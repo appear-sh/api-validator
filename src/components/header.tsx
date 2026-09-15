@@ -17,10 +17,10 @@ export function Header() {
       <div className="container mx-auto px-4 flex h-16 items-center justify-between">
         <div className="flex items-center">
           <div className="flex items-center gap-2 mr-8">
-            <Link href="https://appear.sh" className="group">
+            <Link href="https://appear.sh" className="group" title="Appear has wound down">
               <Image
                 src="/Appear Logo v3.png"
-                alt="Appear Logo"
+                alt="Appear"
                 width={120}
                 height={40}
                 priority
@@ -28,11 +28,25 @@ export function Header() {
               />
             </Link>
             <span className="text-white font-medium text-lg hidden sm:inline">
-              <span className="text-zinc-500">/</span> OpenAPI Agent Readiness Checker
+              <span className="text-zinc-500">/</span> OpenAPI validator
             </span>
           </div>
         </div>
         <div className="flex items-center space-x-3">
+          <Link
+            href="https://www.ctxpipe.ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden sm:block"
+          >
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="gap-2 border border-white/20 bg-transparent text-white/80 hover:bg-white/5 hover:text-white hover:border-white/30 transition-all"
+            >
+              ctxpipe.ai
+            </Button>
+          </Link>
           <Link
             href="https://github.com/appear-sh/api-validator"
             target="_blank"
@@ -65,6 +79,23 @@ export function Header() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="bg-zinc-950/90 backdrop-blur-sm border-white/10 text-zinc-300">
+              <DropdownMenuItem asChild className="hover:bg-white/5 cursor-pointer focus:bg-white/5">
+                <Link
+                  href="https://github.com/ctxpipe-ai/ctxpipe"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2"
+                >
+                  <Image 
+                    src="/github-mark-white.png"
+                    alt="GitHub Logo"
+                    width={16}
+                    height={16}
+                    className="opacity-80"
+                  />
+                  ctxpipe
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuItem asChild className="hover:bg-white/5 cursor-pointer focus:bg-white/5">
                 <Link
                   href="https://appear.sh/api-toolkit/specs"
@@ -104,6 +135,20 @@ export function Header() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+      </div>
+      <div className="border-t border-white/5 bg-white/[0.02]">
+        <p className="container mx-auto px-4 py-2 text-center text-xs sm:text-sm text-zinc-400">
+          Appear has wound down. The founders are now building{' '}
+          <Link
+            href="https://www.ctxpipe.ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[#40E0D0] underline underline-offset-2 hover:text-[#64e1dc] transition-colors"
+          >
+            ctxpipe.ai
+          </Link>
+          {' '}— the context layer for AI engineering agents.
+        </p>
       </div>
     </header>
   )

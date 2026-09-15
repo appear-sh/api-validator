@@ -1,0 +1,36 @@
+# Agent-Ready Score
+
+> Free OpenAPI lint plus a deterministic documentation checklist. Static analysis of the spec — not a runtime test of agents.
+
+- Live tool: https://validator.appear.sh
+- Source: https://github.com/appear-sh/api-validator
+- Originally from Appear (wound down). Founders now build https://www.ctxpipe.ai
+
+## What it does
+
+Upload or paste an OpenAPI 3.0.x, 3.1, or 3.2 spec (YAML or JSON). The tool runs three technical validators (Spectral, Swagger Parser, OAS Zod Validator) and a deterministic checklist score. No account. No model in the scoring loop. Same spec, same score.
+
+OpenAPI 3.2 is checked by OAS Zod Validator only. Spectral and Swagger Parser are skipped until those engines support 3.2.
+
+## Agent-Ready Score
+
+A rule-based 0–100 checklist of what is written in the specification: parseability, descriptions, operationIds, examples, documented auth, and documented errors. Grade A/B (80+) means strong coverage of this checklist, not that the API is “agent ready”.
+
+| Dimension | Weight | What it checks |
+| --- | --- | --- |
+| Foundational Compliance | 25% | Spec parses; broken $refs and invalid schemas stop document consumers |
+| Semantic Richness | 20% | Descriptions present in the spec |
+| Agent Usability | 20% | operationIds, idempotency and pagination as documented |
+| AI Discoverability | 15% | Examples and tags |
+| Security | 10% | Documented auth schemes (not a live auth test) |
+| Error Recoverability | 10% | Documented error schemas (not live Retry-After) |
+
+This is not an AI judge and not a certification.
+
+## What it is not
+
+ctxpipe.ai is a separate product: a self-learning context layer for AI engineering agents. This validator does not auto-fix specs and is not a ctxpipe feature.
+
+## Further reading
+
+- https://appear.sh/blog/why-your-api-docs-break-for-ai-agents

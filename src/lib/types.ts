@@ -56,7 +56,6 @@ export type {
   AgentReadinessScore, 
   DimensionScore, 
   Recommendation, 
-  AppearCTA,
   Grade,
   ReadinessLevel,
   Signal,

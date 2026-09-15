@@ -28,7 +28,6 @@ import type { AgentReadinessScore, DimensionScore, Grade, Signal, ValidationResu
 import { MethodologyModal } from "@/components/methodology-modal"
 import { UnicornBackground } from "@/components/unicorn-background"
 import { LottieLoader } from "@/components/ui/lottie-loader"
-import Image from "next/image"
 
 interface AgentReadinessDisplayProps {
   score: AgentReadinessScore | null
@@ -173,15 +172,6 @@ const DimensionCard = memo(function DimensionCard({
             </div>
           )}
 
-          {/* Appear Help */}
-          {dimension.appearCanHelp && dimension.appearHelpText && (
-            <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
-              <div>
-                <p className="text-sm text-primary font-medium">How Appear helps</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{dimension.appearHelpText}</p>
-              </div>
-            </div>
-          )}
         </CardContent>
       )}
     </Card>
@@ -189,76 +179,48 @@ const DimensionCard = memo(function DimensionCard({
 })
 
 /**
- * Appear CTA card - memoised
+ * Founders' next endeavour — not a product pitch for this validator.
  */
-const AppearCTACard = memo(function AppearCTACard({ cta }: { cta: AgentReadinessScore['appearCTA'] }) {
+const CtxpipeNote = memo(function CtxpipeNote() {
   return (
-    <Card className="border-border/50 bg-card/50" role="region" aria-label="Appear.sh promotion">
+    <Card className="border-border/50 bg-card/50" role="region" aria-label="What the founders are building now">
       <CardContent className="p-6">
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Left side - content */}
-          <div className="flex-1 space-y-4">
-            <div className="flex items-center gap-2.5">
-              <Image 
-                src="/appear-logo-vector.svg" 
-                alt="Appear" 
-                width={18} 
-                height={18}
-                className="rounded-sm"
-              />
-              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">
-                Powered by Appear
-              </span>
-            </div>
-            
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold text-foreground">{cta.headline}</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">{cta.subheadline}</p>
-            </div>
-            
-            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2" aria-label="Features">
-              {cta.features.map((feature, i) => (
-                <li key={`cta-feature-${i}`} className="flex items-center gap-2 text-sm">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
-                  <span className="text-muted-foreground">{feature}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          
-          {/* Right side - actions */}
-          <div className="flex flex-col gap-2.5 lg:justify-center shrink-0">
-            <Button 
-              asChild 
-              variant="ghost"
-              size="default" 
-              className="w-full lg:w-auto text-foreground animated-gradient-border"
-            >
-              <a 
-                href={cta.primaryAction.url} 
-                target="_blank" 
+        <div className="flex flex-col lg:flex-row gap-6 lg:items-center">
+          <div className="flex-1 space-y-2">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">
+              After Appear
+            </p>
+            <h3 className="text-lg font-semibold text-foreground">
+              The founders are now building ctxpipe.ai
+            </h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Appear has wound down. This validator stays free and open source. The next endeavour is{' '}
+              <a
+                href="https://www.ctxpipe.ai"
+                target="_blank"
                 rel="noopener noreferrer"
-                data-cta="primary"
-                data-cta-label={cta.primaryAction.label}
+                className="text-[#40E0D0] underline hover:text-[#64e1dc] transition-colors"
               >
-                {cta.primaryAction.label}
-                <ExternalLink className="h-3.5 w-3.5 ml-2" aria-hidden="true" />
+                ctxpipe.ai
               </a>
-            </Button>
-            {cta.secondaryAction && (
-              <Button asChild variant="outline" size="default" className="w-full lg:w-auto">
-                <a 
-                  href={cta.secondaryAction.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  data-cta="secondary"
-                  data-cta-label={cta.secondaryAction.label}
-                >
-                  {cta.secondaryAction.label}
-                </a>
-              </Button>
-            )}
+              {' '}— a self-learning context layer for AI engineering agents, covering your whole org, not just your APIs.
+            </p>
           </div>
+          <Button 
+            asChild 
+            variant="ghost"
+            size="default" 
+            className="w-full lg:w-auto text-foreground animated-gradient-border shrink-0"
+          >
+            <a 
+              href="https://www.ctxpipe.ai" 
+              target="_blank" 
+              rel="noopener noreferrer"
+            >
+              Visit ctxpipe.ai
+              <ExternalLink className="h-3.5 w-3.5 ml-2" aria-hidden="true" />
+            </a>
+          </Button>
         </div>
       </CardContent>
     </Card>
@@ -326,14 +288,11 @@ export function AgentReadinessDisplay({ score, isLoading = false, validationResu
   }, [])
 
   useEffect(() => {
-    if (score) {
-      const timer = setTimeout(() => {
-        setAnimatedScore(score.overallScore)
-      }, 100)
-      return () => clearTimeout(timer)
-    } else {
-      setAnimatedScore(0)
-    }
+    if (!score) return
+    const timer = setTimeout(() => {
+      setAnimatedScore(score.overallScore)
+    }, 100)
+    return () => clearTimeout(timer)
   }, [score])
 
   // Show Lottie animation while calculating
@@ -342,7 +301,7 @@ export function AgentReadinessDisplay({ score, isLoading = false, validationResu
       <Card className="border-border/40 bg-card/30 backdrop-blur-sm">
         <CardContent className="p-6 flex flex-col justify-center items-center min-h-[400px]">
           <LottieLoader height={160} width={160} />
-          <p className="text-muted-foreground mt-4 text-sm">Calculating your Agent-Ready Score...</p>
+          <p className="text-muted-foreground mt-4 text-sm">Running the spec checklist…</p>
         </CardContent>
       </Card>
     )
@@ -355,7 +314,7 @@ export function AgentReadinessDisplay({ score, isLoading = false, validationResu
   const colors = GRADE_COLORS[score.grade]
 
   return (
-    <div className="space-y-6" role="region" aria-label="Agent Readiness Score Results">
+    <div className="space-y-6" role="region" aria-label="Spec checklist results">
       {/* Overall Score Header */}
       <Card className={cn("border-2 relative overflow-hidden", colors.border)}>
         {/* Unicorn Studio background animation */}
@@ -385,7 +344,7 @@ export function AgentReadinessDisplay({ score, isLoading = false, validationResu
             {/* Score Details */}
             <div className="flex-1 text-center md:text-left space-y-2">
               <div className="flex items-center justify-center md:justify-start gap-3 flex-wrap">
-                <h2 className="text-2xl font-bold">Readiness Score</h2>
+                <h2 className="text-2xl font-bold">Checklist score</h2>
                 <span className={cn(
                   "px-3 py-1 rounded-full text-sm font-semibold",
                   colors.bg, colors.text
@@ -442,7 +401,7 @@ export function AgentReadinessDisplay({ score, isLoading = false, validationResu
         <section aria-labelledby="recommendations-heading">
           <h3 id="recommendations-heading" className="text-lg font-semibold mb-4">Priority Improvements</h3>
           <div className="space-y-2" role="list" aria-label="Improvement recommendations">
-            {score.recommendations.slice(0, 4).map((rec, i) => {
+            {score.recommendations.map((rec, i) => {
               const relevantErrors = getRelevantErrors(rec.dimension)
               const errorCount = relevantErrors.length
               
@@ -499,8 +458,7 @@ export function AgentReadinessDisplay({ score, isLoading = false, validationResu
         </section>
       )}
 
-      {/* Appear CTA */}
-      <AppearCTACard cta={score.appearCTA} />
+      <CtxpipeNote />
     </div>
   )
 }

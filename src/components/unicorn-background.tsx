@@ -82,8 +82,8 @@ export function UnicornBackground({
 
     // Fallback for browsers without IntersectionObserver
     if (!('IntersectionObserver' in window)) {
-      setShouldInit(true)
-      return
+      const frame = requestAnimationFrame(() => setShouldInit(true))
+      return () => cancelAnimationFrame(frame)
     }
 
     const el = containerRef.current

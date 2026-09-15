@@ -1,10 +1,9 @@
 /**
  * Agent-Ready Score Calculator
  * 
- * Appear's framework for evaluating how well an OpenAPI specification is prepared
- * for consumption by AI agents. This methodology assesses six dimensions that
- * determine whether agents can reliably discover, understand, and interact with
- * your API.
+ * Deterministic checklist of an OpenAPI document for tool-calling setups.
+ * Not a runtime test of agents. Originally built at Appear. Appear has
+ * wound down; the founders now build ctxpipe.ai.
  * 
  * Six dimensions evaluated:
  * 1. Foundational Compliance - Structural validity and standards conformance
@@ -15,11 +14,13 @@
  * 6. Error Recoverability - Structured errors enabling self-correction
  * 
  * @see https://appear.sh/blog/why-your-api-docs-break-for-ai-agents
+ * @see https://www.ctxpipe.ai
  * @see https://learn.openapis.org/best-practices.html
  */
 
-import * as yaml from 'js-yaml';
+import { load as loadYaml } from 'js-yaml';
 import type { ValidationResult } from '@/lib/types';
+import { assertSpecBudget } from '@/lib/spec-limits';
 
 // Comprehensive OpenAPI spec interface for deep analysis
 interface OpenApiSpec {
@@ -175,7 +176,7 @@ interface SecurityRequirement {
 
 // Grade levels for human-readable assessment
 export type Grade = 'A' | 'B' | 'C' | 'D' | 'F';
-export type ReadinessLevel = 'Agent Ready' | 'Partially Ready' | 'Needs Work' | 'Not Ready';
+export type ReadinessLevel = 'Strong spec surface' | 'Partial coverage' | 'Many gaps' | 'Severe gaps';
 
 export interface DimensionScore {
   score: number;
@@ -185,8 +186,6 @@ export interface DimensionScore {
   signals: Signal[];
   details: Record<string, number>;
   improvementTips: string[];
-  appearCanHelp: boolean;
-  appearHelpText?: string;
 }
 
 export interface Signal {
@@ -216,7 +215,6 @@ export interface AgentReadinessScore {
     securitySchemes: number;
   };
   recommendations: Recommendation[];
-  appearCTA: AppearCTA;
 }
 
 export interface Recommendation {
@@ -225,21 +223,6 @@ export interface Recommendation {
   title: string;
   description: string;
   impact: string;
-  automatable: boolean;
-}
-
-export interface AppearCTA {
-  headline: string;
-  subheadline: string;
-  primaryAction: {
-    label: string;
-    url: string;
-  };
-  secondaryAction?: {
-    label: string;
-    url: string;
-  };
-  features: string[];
 }
 
 // ============================================================================
@@ -303,7 +286,11 @@ export function calculateAgentReadinessScore(
   // Parse the spec
   let spec: OpenApiSpec | null = null;
   try {
-    spec = yaml.load(specContent) as OpenApiSpec;
+    const budget = assertSpecBudget(specContent)
+    if (budget) {
+      return createErrorScore(budget.error)
+    }
+    spec = loadYaml(specContent) as OpenApiSpec;
     if (typeof spec !== 'object' || spec === null) {
       throw new Error('Parsed content is not an object.');
     }
@@ -345,9 +332,6 @@ export function calculateAgentReadinessScore(
     errorRecoverability,
   });
 
-  // Generate Appear CTA based on score and gaps
-  const appearCTA = generateAppearCTA(overallScore, recommendations);
-
   // Generate summary
   const summary = generateSummary(overallScore, grade, readinessLevel, stats);
 
@@ -366,7 +350,6 @@ export function calculateAgentReadinessScore(
     },
     stats,
     recommendations,
-    appearCTA,
   };
 }
 
@@ -379,10 +362,10 @@ function scoreToGrade(score: number): Grade {
 }
 
 function scoreToReadinessLevel(score: number): ReadinessLevel {
-  if (score >= 80) return 'Agent Ready';
-  if (score >= 60) return 'Partially Ready';
-  if (score >= 40) return 'Needs Work';
-  return 'Not Ready';
+  if (score >= 80) return 'Strong spec surface';
+  if (score >= 60) return 'Partial coverage';
+  if (score >= 40) return 'Many gaps';
+  return 'Severe gaps';
 }
 
 function gatherStats(spec: OpenApiSpec): AgentReadinessScore['stats'] {
@@ -420,14 +403,12 @@ function createErrorScore(message: string): AgentReadinessScore {
     signals: [{ type: 'negative', message }],
     details: {},
     improvementTips: [],
-    appearCanHelp: true,
-    appearHelpText: 'Appear can automatically generate accurate schemas from your live API traffic.',
   };
 
   return {
     overallScore: 0,
     grade: 'F',
-    readinessLevel: 'Not Ready',
+    readinessLevel: 'Severe gaps',
     summary: message,
     dimensions: {
       foundationalCompliance: { ...emptyDimension, label: 'Foundational Compliance' },
@@ -443,10 +424,8 @@ function createErrorScore(message: string): AgentReadinessScore {
       dimension: 'foundationalCompliance',
       title: 'Fix Specification Parsing',
       description: message,
-      impact: 'AI agents cannot interact with an unparseable specification.',
-      automatable: true,
+      impact: 'Nothing that consumes this file as OpenAPI can trust it until it parses.',
     }],
-    appearCTA: generateAppearCTA(0, []),
   };
 }
 
@@ -521,14 +500,14 @@ function analyzeFoundationalCompliance(
 
   const improvementTips: string[] = [];
   if (errors.length > 0) improvementTips.push('Resolve all validation errors to ensure agents can parse the specification');
-  if (refIssues.length > 0) improvementTips.push('Fix broken $ref references - agents cannot resolve incomplete schemas');
+  if (refIssues.length > 0) improvementTips.push('Fix broken $ref references — consumers of this document cannot resolve incomplete schemas');
   if (schemaIssues.length > 0) improvementTips.push('Correct schema definitions - type mismatches confuse AI reasoning');
 
   return {
     score,
     grade: scoreToGrade(score),
     label: 'Foundational Compliance',
-    description: 'Structural validity from SwaggerParser, OAS Zod Validator, and Spectral. Agents cannot parse invalid specs.',
+    description: 'Structural validity from Swagger Parser, OAS Zod Validator, and Spectral. An invalid document cannot be consumed as a spec.',
     signals,
     details: {
       specificationValidity,
@@ -537,8 +516,6 @@ function analyzeFoundationalCompliance(
       structuralIntegrity,
     },
     improvementTips,
-    appearCanHelp: errors.length > 0 || schemaIssues.length > 0,
-    appearHelpText: 'Appear automatically generates schemas from real API traffic, eliminating documentation drift and schema errors.',
   };
 }
 
@@ -633,13 +610,13 @@ function analyzeSemanticRichness(spec: OpenApiSpec, stats: AgentReadinessScore['
   const improvementTips: string[] = [];
   if (descriptionCoverage < 80) improvementTips.push('Add descriptions to operations explaining what they do and when to use them');
   if (parameterDescriptions < 70) improvementTips.push('Document parameters with their purpose, constraints, and valid values');
-  if (nlQuality < 50) improvementTips.push('Use action verbs and business context in descriptions (e.g., "Creates a new customer order")');
+  if (nlQuality < 50) improvementTips.push('Write descriptions that say what the operation does and when to use it');
 
   return {
     score,
     grade: scoreToGrade(score),
     label: 'Semantic Richness',
-    description: 'Natural language descriptions that help AI agents understand intent, context, and when to use each endpoint.',
+    description: 'Natural language in the spec. Generated tools have little else to go on; this does not prove how a model will call the API.',
     signals,
     details: {
       descriptionCoverage,
@@ -649,8 +626,6 @@ function analyzeSemanticRichness(spec: OpenApiSpec, stats: AgentReadinessScore['
       naturalLanguageQuality: nlQuality,
     },
     improvementTips,
-    appearCanHelp: true,
-    appearHelpText: 'Appear enriches specifications with AI-generated descriptions based on actual API usage patterns.',
   };
 }
 
@@ -723,7 +698,7 @@ function analyzeAgentUsability(spec: OpenApiSpec, stats: AgentReadinessScore['st
   } else if (operationIdCoverage > 0) {
     signals.push({ type: 'negative', message: `${stats.operations - operationsWithId} operations missing operationId`, count: stats.operations - operationsWithId });
   } else {
-    signals.push({ type: 'negative', message: 'No operationIds defined - agents cannot identify operations' });
+    signals.push({ type: 'negative', message: 'No operationIds defined — tool generators have nothing to use as function names' });
   }
   
   if (operationIdQuality < 50 && operationsWithId > 0) {
@@ -760,7 +735,7 @@ function analyzeAgentUsability(spec: OpenApiSpec, stats: AgentReadinessScore['st
     score,
     grade: scoreToGrade(score),
     label: 'Agent Usability',
-    description: 'Features enabling agents to safely orchestrate multi-step workflows: operationIds, idempotency, and predictable patterns.',
+    description: 'operationIds, pagination hints, and idempotency as written in the spec — not observed at runtime.',
     signals,
     details: {
       operationIdCoverage,
@@ -770,8 +745,6 @@ function analyzeAgentUsability(spec: OpenApiSpec, stats: AgentReadinessScore['st
       paginationCoverage,
     },
     improvementTips,
-    appearCanHelp: true,
-    appearHelpText: 'Appear automatically generates meaningful operationIds and identifies idempotent endpoints from traffic analysis.',
   };
 }
 
@@ -886,7 +859,7 @@ function analyzeAIDiscoverability(spec: OpenApiSpec, stats: AgentReadinessScore[
     score,
     grade: scoreToGrade(score),
     label: 'AI Discoverability',
-    description: 'Examples, tags, and metadata that help AI agents discover and understand API capabilities without trial and error.',
+    description: 'Examples, tags, and info/servers metadata present in the document.',
     signals,
     details: {
       exampleCoverage,
@@ -895,8 +868,6 @@ function analyzeAIDiscoverability(spec: OpenApiSpec, stats: AgentReadinessScore[
       metadataCompleteness: metadataScore,
     },
     improvementTips,
-    appearCanHelp: true,
-    appearHelpText: 'Appear captures real request/response examples from production traffic and auto-generates comprehensive examples.',
   };
 }
 
@@ -976,7 +947,7 @@ function analyzeSecurity(spec: OpenApiSpec, stats: AgentReadinessScore['stats'])
     score,
     grade: scoreToGrade(score),
     label: 'Security',
-    description: 'Authentication and authorization mechanisms that agents can discover and use programmatically.',
+    description: 'Security schemes and coverage as documented. This does not test whether authentication works.',
     signals,
     details: {
       securitySchemes: schemeScore,
@@ -984,8 +955,6 @@ function analyzeSecurity(spec: OpenApiSpec, stats: AgentReadinessScore['stats'])
       httpsSupport: httpsScore,
     },
     improvementTips,
-    appearCanHelp: schemeCount === 0,
-    appearHelpText: 'Appear detects authentication patterns from traffic and documents security schemes automatically.',
   };
 }
 
@@ -1081,7 +1050,7 @@ function analyzeErrorRecoverability(spec: OpenApiSpec, stats: AgentReadinessScor
     score,
     grade: scoreToGrade(score),
     label: 'Error Recoverability',
-    description: 'Structured error responses with codes and retry guidance that enable agents to self-correct and recover from failures.',
+    description: 'Error responses and schemas as documented in the spec, not live retry behaviour.',
     signals,
     details: {
       errorCoverage,
@@ -1090,13 +1059,11 @@ function analyzeErrorRecoverability(spec: OpenApiSpec, stats: AgentReadinessScor
       retrySupport,
     },
     improvementTips,
-    appearCanHelp: errorCoverage < 80 || structuredErrors < 50,
-    appearHelpText: 'Appear captures error responses from real traffic and documents error schemas automatically.',
   };
 }
 
 // ============================================================================
-// RECOMMENDATIONS & CTA GENERATION
+// RECOMMENDATIONS
 // ============================================================================
 
 function generateRecommendations(
@@ -1111,8 +1078,7 @@ function generateRecommendations(
       dimension: 'Foundational Compliance',
       title: 'Fix Structural Validity Issues',
       description: 'Resolve validation errors and broken references to ensure agents can parse and understand your API.',
-      impact: 'Agents cannot interact with invalid specifications. This is a blocking issue.',
-      automatable: true,
+      impact: 'Nothing that consumes this file as an OpenAPI document can trust it until it parses.',
     });
   }
 
@@ -1123,8 +1089,7 @@ function generateRecommendations(
       dimension: 'Semantic Richness',
       title: 'Enrich Descriptions for AI Understanding',
       description: 'Add natural language descriptions to operations, parameters, and schemas. Use action verbs and business context.',
-      impact: 'AI agents use descriptions to understand when and how to use each endpoint. Poor descriptions lead to incorrect API calls.',
-      automatable: true,
+      impact: 'Generated tools mostly see what you wrote. Thin descriptions leave them with less context; that is not the same as a failed live call.',
     });
   }
 
@@ -1135,8 +1100,7 @@ function generateRecommendations(
       dimension: 'Agent Usability',
       title: 'Add OperationIds and Improve Naming',
       description: 'Every operation needs a unique operationId using verb-noun format (e.g., getUsers, createOrder).',
-      impact: 'Agents convert operationIds to function names. Missing or poor IDs break agent tool calling.',
-      automatable: true,
+      impact: 'Many tool generators use operationId as the function name. Missing IDs make that mapping worse.',
     });
   }
 
@@ -1147,8 +1111,7 @@ function generateRecommendations(
       dimension: 'AI Discoverability',
       title: 'Add Examples and Tags',
       description: 'Include request/response examples for all operations and organize endpoints with tags.',
-      impact: 'Agents learn from examples faster than schemas. Tags help agents discover related functionality.',
-      automatable: true,
+      impact: 'Examples and tags are hints in the document. They help readers and generators; they do not replace an integration test.',
     });
   }
 
@@ -1159,8 +1122,7 @@ function generateRecommendations(
       dimension: 'Security',
       title: 'Document Authentication Methods',
       description: 'Define security schemes and apply them consistently. Agents need to know how to authenticate.',
-      impact: 'Without documented security, agents cannot make authenticated requests.',
-      automatable: true,
+      impact: 'Without documented security schemes, a generated client does not know what credentials to send.',
     });
   }
 
@@ -1171,8 +1133,7 @@ function generateRecommendations(
       dimension: 'Error Recoverability',
       title: 'Structure Error Responses',
       description: 'Define error responses with structured schemas including error codes and retry guidance.',
-      impact: 'Structured errors enable agents to understand failures and retry intelligently.',
-      automatable: true,
+      impact: 'Documented error shapes help a caller interpret failures. This checklist does not observe live Retry-After headers.',
     });
   }
 
@@ -1183,89 +1144,28 @@ function generateRecommendations(
   return recommendations;
 }
 
-function generateAppearCTA(overallScore: number, recommendations: Recommendation[]): AppearCTA {
-  const automatableCount = recommendations.filter(r => r.automatable).length;
-  const hasCritical = recommendations.some(r => r.priority === 'critical');
-
-  // Common secondary action - always offer a demo
-  const demoAction = {
-    label: 'Book a Demo',
-    url: 'https://cal.com/appear.sh/demo',
-  };
-
-  if (overallScore >= 80) {
-    return {
-      headline: 'Keep Your API Agent-Ready',
-      subheadline: 'Your API scores well for AI agents. Appear helps maintain this quality by detecting documentation drift in real-time.',
-      primaryAction: {
-        label: 'Get Started Free',
-        url: 'https://app.appear.sh/sign-up?utm_source=validator&utm_campaign=agent-ready-high',
-      },
-      secondaryAction: demoAction,
-      features: [
-        'Real-time schema validation against live traffic',
-        'Automatic drift detection and alerts',
-        'Continuous AI readiness monitoring',
-      ],
-    };
-  }
-
-  if (hasCritical || overallScore < 40) {
-    return {
-      headline: 'Automate Your Path to Agent-Ready',
-      subheadline: `Your API has ${automatableCount} issues that Appear can fix automatically by analysing your real API traffic.`,
-      primaryAction: {
-        label: 'Get Started Free',
-        url: 'https://app.appear.sh/sign-up?utm_source=validator&utm_campaign=agent-ready-critical',
-      },
-      secondaryAction: demoAction,
-      features: [
-        'Auto-generate accurate schemas from traffic',
-        'Capture real request/response examples',
-        'Detect and fix documentation drift',
-        'AI-powered description enrichment',
-      ],
-    };
-  }
-
-  return {
-    headline: 'Make Your API Agent-Ready Faster',
-    subheadline: `Appear can automatically resolve ${automatableCount} of your improvement opportunities by learning from real API traffic.`,
-    primaryAction: {
-      label: 'Get Started Free',
-      url: 'https://app.appear.sh/sign-up?utm_source=validator&utm_campaign=agent-ready',
-    },
-    secondaryAction: demoAction,
-    features: [
-      'Generate schemas from live traffic',
-      'Auto-document security schemes',
-      'Create examples from real requests',
-      'Enrich descriptions with AI',
-    ],
-  };
-}
-
 function generateSummary(
-  score: number, 
-  grade: Grade, 
-  level: ReadinessLevel, 
+  score: number,
+  _grade: Grade,
+  level: ReadinessLevel,
   stats: AgentReadinessScore['stats']
 ): string {
-  const opText = stats.operations === 1 ? 'operation' : 'operations';
-  
+  void _grade
+  const opText = stats.operations === 1 ? 'operation' : 'operations'
+
   if (score >= 80) {
-    return `Your API is ${level.toLowerCase()} for AI agents. With ${stats.operations} ${opText} and strong documentation, agents can effectively discover and use your API.`;
+    return `Checklist: ${level.toLowerCase()} (${score}/100) across ${stats.operations} ${opText}. The spec covers most of what this static analysis looks for. That is not a runtime test of agents.`
   }
-  
+
   if (score >= 60) {
-    return `Your API is ${level.toLowerCase()} for AI agents. There are opportunities to improve discoverability and usability for ${stats.operations} ${opText}.`;
+    return `Checklist: ${level.toLowerCase()} (${score}/100) across ${stats.operations} ${opText}. Several documentation gaps. Use the signals below as a punch-list, not a verdict.`
   }
-  
+
   if (score >= 40) {
-    return `Your API ${level.toLowerCase().replace('needs work', 'needs work')} before AI agents can reliably interact with it. Focus on the critical improvements below.`;
+    return `Checklist: ${level.toLowerCase()} (${score}/100) across ${stats.operations} ${opText}. Large parts of the spec are thin. This is a documentation review, not proof agents will fail.`
   }
-  
-  return `Your API is ${level.toLowerCase()} for AI agent consumption. Significant improvements are needed for agents to understand and use your ${stats.operations} ${opText}.`;
+
+  return `Checklist: ${level.toLowerCase()} (${score}/100) across ${stats.operations} ${opText}. The spec is missing a lot of what tool-calling setups typically read, or it does not parse cleanly.`
 }
 
 // Re-export for backward compatibility
@@ -1282,10 +1182,10 @@ export { calculateAgentReadinessScore as calculateAIReadinessScore };
  */
 export const METHODOLOGY = {
   name: 'Agent-Ready Score',
-  version: '1.0.0',
+  version: '1.2.0',
   author: 'Appear',
-  description: "Appear's framework for evaluating OpenAPI specifications for AI agent consumption. Based on practical analysis of what causes AI agents to fail when interacting with APIs.",
-  rationale: 'AI agents need more than human-readable documentation. They require precise types, complete schemas, unambiguous context, and structured error handling to operate reliably.',
+  description: 'A deterministic checklist of an OpenAPI document: parseability and the documentation tool-calling setups typically read. Originally built at Appear. It is not a runtime test of agents and not a certification.',
+  rationale: 'If something turns your spec into tools — a model, an MCP wrapper, a generated client — it mostly sees what is in the file. This score measures that surface. It does not call your API, run a model, or prove that agents will succeed.',
   dimensions: [
     {
       id: 'foundationalCompliance',
@@ -1293,8 +1193,8 @@ export const METHODOLOGY = {
       weight: WEIGHTS.foundationalCompliance,
       weightPercent: 25,
       icon: 'shield-check',
-      description: 'Structural validity and OpenAPI standards conformance. The baseline for any agent interaction.',
-      whyItMatters: 'Agents cannot parse invalid specifications. Broken references and schema errors cause immediate failures.',
+      description: 'Structural validity and OpenAPI standards conformance.',
+      whyItMatters: 'An unparseable spec is useless to anything that consumes the document. That part is a hard stop. The rest of this dimension is lint coverage, not live behaviour.',
       factors: [
         'Specification validity (no parsing errors)',
         'Lint results (errors and warnings)',
@@ -1308,8 +1208,8 @@ export const METHODOLOGY = {
       weight: WEIGHTS.semanticRichness,
       weightPercent: 20,
       icon: 'message-square-text',
-      description: 'Natural language descriptions that help AI agents understand intent and context.',
-      whyItMatters: 'Agents use descriptions to decide when and how to call endpoints. Vague descriptions lead to incorrect API usage.',
+      description: 'Natural language descriptions present in the spec.',
+      whyItMatters: 'Generated tools have little except what you wrote. Vague descriptions are a documentation gap, not proof of incorrect calls.',
       factors: [
         'Operation description coverage and quality',
         'Summary field usage',
@@ -1324,11 +1224,12 @@ export const METHODOLOGY = {
       weight: WEIGHTS.agentUsability,
       weightPercent: 20,
       icon: 'bot',
-      description: 'Features enabling agents to safely orchestrate multi-step workflows.',
-      whyItMatters: 'Agents convert operationIds to function names and need idempotency guarantees for safe retries.',
+      description: 'operationIds and documented retry/list patterns.',
+      whyItMatters: 'operationId is often the tool name. Idempotency and pagination are inferred from the document; this does not watch traffic.',
       factors: [
         'OperationId coverage and naming quality',
         'Idempotency support for safe retries',
+        'Pagination on list operations',
         'Error response coverage',
       ],
     },
@@ -1338,8 +1239,8 @@ export const METHODOLOGY = {
       weight: WEIGHTS.aiDiscoverability,
       weightPercent: 15,
       icon: 'search',
-      description: 'Examples and metadata that help AI agents discover capabilities without trial and error.',
-      whyItMatters: 'Agents learn from examples faster than schemas. Tags help agents find related functionality.',
+      description: 'Examples, tags, and API-level metadata in the file.',
+      whyItMatters: 'Examples and tags are useful hints. They do not replace trying the API.',
       factors: [
         'Request/response example coverage',
         'Schema example coverage',
@@ -1353,8 +1254,8 @@ export const METHODOLOGY = {
       weight: WEIGHTS.security,
       weightPercent: 10,
       icon: 'lock',
-      description: 'Authentication mechanisms that agents can discover and use programmatically.',
-      whyItMatters: 'Without documented security schemes, agents cannot make authenticated requests.',
+      description: 'Authentication as documented in the spec.',
+      whyItMatters: 'A consumer can only send credentials you described. This does not verify that those schemes work.',
       factors: [
         'Security scheme definitions',
         'Security coverage across operations',
@@ -1367,8 +1268,8 @@ export const METHODOLOGY = {
       weight: WEIGHTS.errorRecoverability,
       weightPercent: 10,
       icon: 'rotate-ccw',
-      description: 'Structured error responses enabling agents to self-correct and recover from failures.',
-      whyItMatters: 'Structured errors with codes and retry guidance enable agents to recover intelligently instead of failing.',
+      description: 'Error responses as written in the spec.',
+      whyItMatters: 'Documented error schemas help a caller interpret failures. Live Retry-After headers are out of scope.',
       factors: [
         'Error response definition coverage',
         'Structured error schemas',
@@ -1378,23 +1279,28 @@ export const METHODOLOGY = {
     },
   ],
   gradeThresholds: {
-    A: { min: 90, label: 'Excellent', color: 'emerald' },
-    B: { min: 80, label: 'Good', color: 'green' },
-    C: { min: 70, label: 'Fair', color: 'yellow' },
-    D: { min: 60, label: 'Poor', color: 'orange' },
-    F: { min: 0, label: 'Failing', color: 'red' },
+    A: { min: 90, label: 'Strong coverage', color: 'emerald' },
+    B: { min: 80, label: 'Good coverage', color: 'green' },
+    C: { min: 70, label: 'Fair coverage', color: 'yellow' },
+    D: { min: 60, label: 'Thin coverage', color: 'orange' },
+    F: { min: 0, label: 'Weak / may not parse', color: 'red' },
   },
   readinessLevels: {
-    'Agent Ready': { min: 80, description: 'AI agents can reliably interact with this API' },
-    'Partially Ready': { min: 60, description: 'Agents may encounter issues with some operations' },
-    'Needs Work': { min: 40, description: 'Significant gaps will cause agent failures' },
-    'Not Ready': { min: 0, description: 'Agents cannot reliably use this API' },
+    'Strong spec surface': { min: 80, description: 'This checklist is mostly filled in. Not a guarantee agents will succeed.' },
+    'Partial coverage': { min: 60, description: 'Several checklist items are missing. Treat the signals as a punch-list.' },
+    'Many gaps': { min: 40, description: 'Large parts of the spec are undocumented. A documentation review, not a runtime test.' },
+    'Severe gaps': { min: 0, description: 'The spec is missing a lot of what this checklist looks for, or it does not parse.' },
   },
   references: [
     { 
       title: 'Why Your API Docs Break for AI Agents', 
       url: 'https://appear.sh/blog/why-your-api-docs-break-for-ai-agents',
-      description: 'The reasoning behind this framework'
+      description: 'The reasoning behind this framework (Appear; wound down)'
+    },
+    { 
+      title: 'ctxpipe.ai', 
+      url: 'https://www.ctxpipe.ai',
+      description: "The founders' new endeavour — a self-learning context layer for AI engineering agents"
     },
     { 
       title: 'OpenAPI Best Practices', 
